@@ -152,6 +152,32 @@ dbm-cli manifest                                        # self-describing JSON f
 
 Global flags: `-c/--config`, `-d/--datasource`, `-o/--output {table|json|csv|yaml|vertical}`, `--no-header`
 
+#### Custom SQL (`query`)
+
+`query` runs any SQL. Read-only statements execute directly; writes go through the `allow_write` guard (off by default), with a second confirmation for destructive statements (`DROP`/`TRUNCATE`, `DELETE`/`UPDATE` without `WHERE`).
+
+**Three SQL sources** (priority: `--file` > stdin > argument):
+
+```bash
+dbm-cli query -d prod-ro "SELECT * FROM HR.EMPLOYEES WHERE ROWNUM<=10"   # argument
+dbm-cli query -d prod-ro -f report.sql                                    # from file
+echo "SELECT COUNT(*) FROM orders" | dbm-cli query -d prod-ro             # stdin / pipe / heredoc
+```
+
+**Parameterized queries** (SQL-injection-safe — preferred over string concatenation). Write `?` as the placeholder; it is auto-translated to each engine's native style (`?` for MySQL/ClickHouse, `$1` for PostgreSQL, `:1` for Oracle):
+
+```bash
+dbm-cli query -d prod-ro "SELECT * FROM users WHERE id=? AND status=?" --param 100 --param active
+```
+
+**Result-set guard** — `--limit` caps rows returned by read-only queries (default `1000`, `<=0` disables) to prevent an accidental `SELECT *` from pulling a huge table:
+
+```bash
+dbm-cli query -d prod-ro -f big-report.sql --limit 500
+```
+
+Flags: `--file/-f`, `--param` (repeatable, positional binding), `--limit` (default 1000), `--yes` (skip destructive confirmation).
+
 #### Output formats
 
 | Format | Description | Best for |

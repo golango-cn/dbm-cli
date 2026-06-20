@@ -167,9 +167,16 @@ func newConnWithCfg(ctx context.Context) (driver.Conn, string, *driver.Datasourc
 // 供需要真实访问数据库的命令使用，让配置/网络错误尽早、清晰暴露。
 // 连接超时由数据源配置的 timeout 决定（默认 30s）；超时则报详细错误，便于定位。
 func newConnWithPing(ctx context.Context) (driver.Conn, string, error) {
+	conn, name, _, err := newConnWithPingCfg(ctx)
+	return conn, name, err
+}
+
+// newConnWithPingCfg 同 newConnWithPing，但额外返回 DatasourceConfig。
+// 供需要读取驱动类型（如 query 命令做占位符归一化）或 timeout 的调用方使用。
+func newConnWithPingCfg(ctx context.Context) (driver.Conn, string, *driver.DatasourceConfig, error) {
 	conn, name, dsCfg, err := newConnWithCfg(ctx)
 	if err != nil {
-		return nil, name, err
+		return nil, name, nil, err
 	}
 	// 取配置的超时（默认 30s），给 Ping 加截止时间。
 	timeout := dsCfg.Timeout
@@ -182,12 +189,12 @@ func newConnWithPing(ctx context.Context) (driver.Conn, string, error) {
 		conn.Close()
 		// 区分超时与其它错误，给出更易读的提示。
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, name, fmt.Errorf("cannot connect to datasource %q: timed out after %s (check host/port=%s:%d reachable, credentials correct, and network/firewall allows access)",
+			return nil, name, nil, fmt.Errorf("cannot connect to datasource %q: timed out after %s (check host/port=%s:%d reachable, credentials correct, and network/firewall allows access)",
 				name, timeout, dsCfg.Host, dsCfg.Port)
 		}
-		return nil, name, fmt.Errorf("cannot connect to datasource %q: %w", name, err)
+		return nil, name, nil, fmt.Errorf("cannot connect to datasource %q: %w", name, err)
 	}
-	return conn, name, nil
+	return conn, name, dsCfg, nil
 }
 
 // outOpts 根据全局 flag 构造输出选项。

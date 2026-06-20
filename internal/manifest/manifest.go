@@ -153,6 +153,7 @@ func defaultExamples() []Example {
 		{Description: "查看表结构", Command: "dbm-cli columns -d prod-ro --table EMPLOYEES --schema HR"},
 		{Description: "分页查表数据（JSON 输出）", Command: "dbm-cli table -d prod-ro --name EMPLOYEES --schema HR --limit 20 -o json"},
 		{Description: "执行任意只读 SQL", Command: "dbm-cli query -d prod-ro \"SELECT * FROM HR.EMPLOYEES WHERE ROWNUM <= 10\""},
+		{Description: "参数化查询（防注入，? 自动适配引擎）", Command: "dbm-cli query -d prod-ro \"SELECT * FROM users WHERE id=?\" --param 100"},
 		{Description: "获取自描述清单（供 AI 调用）", Command: "dbm-cli manifest"},
 	}
 }

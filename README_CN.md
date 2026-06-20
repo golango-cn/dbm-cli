@@ -152,6 +152,32 @@ dbm-cli manifest                                        # 面向 AI 的自描述
 
 全局 flag：`-c/--config`、`-d/--datasource`、`-o/--output {table|json|csv|yaml|vertical}`、`--no-header`
 
+#### 自定义 SQL（`query`）
+
+`query` 执行任意 SQL。只读语句直接执行；写操作经 `allow_write` 守卫（默认关闭），危险语句（`DROP`/`TRUNCATE`、无 `WHERE` 的 `DELETE`/`UPDATE`）需二次确认。
+
+**三种 SQL 来源**（优先级：`--file` > stdin > 命令行参数）：
+
+```bash
+dbm-cli query -d prod-ro "SELECT * FROM HR.EMPLOYEES WHERE ROWNUM<=10"   # 命令行参数
+dbm-cli query -d prod-ro -f report.sql                                    # 从文件读取
+echo "SELECT COUNT(*) FROM orders" | dbm-cli query -d prod-ro             # stdin / 管道 / heredoc
+```
+
+**参数化查询**（防 SQL 注入，优先于字符串拼接）。SQL 中用 `?` 作占位符，自动按引擎转换原生风格（MySQL/ClickHouse 用 `?`、PostgreSQL 用 `$1`、Oracle 用 `:1`）：
+
+```bash
+dbm-cli query -d prod-ro "SELECT * FROM users WHERE id=? AND status=?" --param 100 --param active
+```
+
+**结果集保护** —— `--limit` 限制只读查询返回的行数（默认 `1000`，`<=0` 不限制），防止误执行 `SELECT *` 拉爆大表：
+
+```bash
+dbm-cli query -d prod-ro -f big-report.sql --limit 500
+```
+
+Flags：`--file/-f`、`--param`（可多次，按顺序绑定）、`--limit`（默认 1000）、`--yes`（跳过危险语句二次确认）。
+
 #### 输出格式
 
 | 格式 | 说明 | 适用场景 |

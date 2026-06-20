@@ -1,7 +1,8 @@
 # Binaries
 /bin/
 /dist/
-dbm-cli
+/dbm-cli
+demo/dbm-cli
 *.exe
 
 # Local config (may contain secrets)

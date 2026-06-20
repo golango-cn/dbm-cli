@@ -74,13 +74,19 @@ func commandInfos() []manifest.CommandInfo {
 				{Name: "order", Usage: "排序列"},
 			},
 			Examples: []string{"dbm-cli table -d prod-ro --name EMPLOYEES --schema HR --limit 20 -o json"}},
-		{Name: "query", Summary: "执行任意 SQL（写受 allow_write 守卫）",
-			Usage:     "dbm-cli query -d <ds> \"SQL\" [--yes]",
+		{Name: "query", Summary: "执行任意 SQL（只读直执行；写受 allow_write 守卫；支持文件/stdin/参数绑定）",
+			Usage:     "dbm-cli query -d <ds> \"SQL\" [--file F] [--param V ...] [--limit N] [--yes]",
 			Flags: []manifest.Flag{
+				{Name: "file", Shorthand: "f", Usage: "从文件读取 SQL（优先级高于 stdin 与命令行参数）"},
+				{Name: "param", Usage: "绑定到 ? 占位符的参数值，按顺序，可多次指定；自动按引擎转换为 ?/$1/:1"},
+				{Name: "limit", Default: "1000", Usage: "只读查询返回的最大行数（<=0 不限制，防 SELECT * 拉爆大表）"},
 				{Name: "yes", Usage: "跳过危险语句二次确认"},
 			},
 			Examples: []string{
 				"dbm-cli query -d prod-ro \"SELECT * FROM HR.EMPLOYEES WHERE ROWNUM<=10\"",
+				"dbm-cli query -d prod-ro \"SELECT * FROM users WHERE id=? AND status=?\" --param 100 --param active",
+				"dbm-cli query -d prod-ro -f /path/to/report.sql --limit 500",
+				"echo \"SELECT COUNT(*) FROM orders\" | dbm-cli query -d prod-ro",
 				"dbm-cli query -d dev-rw \"DELETE FROM tmp WHERE id=1\" --yes",
 			}},
 	}
