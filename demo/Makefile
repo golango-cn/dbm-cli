@@ -72,5 +72,11 @@ formats:
 	  $(CLI) -c $(CONFIG) -d $(DS) query "SELECT * FROM $(TBL) LIMIT 1" -o $$fmt 2>&1 | head -6; \
 	done
 
+## test_write: 演示写守卫——只读库拦截 DELETE/UPDATE，可写库放行
+##   对比 allow_write=false（game 库，应被拦截）与 allow_write=true（DS，应放行）
+##   实际逻辑在 test-write-guard.sh（Makefile 的 $ 转义难以可靠捕获 $?，改用独立脚本）
+test_write:
+	@./test-write-guard.sh $(DS)
+
 ## all: manifest + demo + meta + data
 all: manifest demo meta data

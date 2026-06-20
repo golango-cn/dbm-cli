@@ -85,8 +85,19 @@ SQL 来源（优先级从高到低）：
 				return writeResult(cmd.OutOrStdout(), res)
 			}
 
-			// 非只读：受 WriteGuard 控制。WriteGuard 已按 allow_write 决定是否放行，
-			// 这里再叠加「危险语句二次确认」一层防御。
+			// 非只读语句：先看数据源是否允许写。
+			// allow_write=false 是数据源级硬限制，优先于交互式二次确认——
+			// 只读库不应先弹「确认执行吗」误导用户，而应直接拒绝并给出明确提示。
+			// 用 WriteDisabledError 包装，保持 errors.Is(err, ErrWriteDisabled) 成立，
+			// 从而 main.go 返回 exit code=2（配置/权限类错误）。
+			if !dsCfg.AllowWrite {
+				return driver.NewWriteDisabledError(fmt.Sprintf(
+					"拒绝执行写语句（%s）：数据源 %q 为只读（allow_write=false）。"+
+					"若确需写操作，请在配置中设置 allow_write: true，或改用已开启 allow_write 的数据源",
+					kind, currentDatasourceName()))
+			}
+
+			// allow_write=true 时，再叠加「危险语句二次确认」一层防御。
 			if query.IsDestructive(sqlStr) && !yes {
 				prompt := fmt.Sprintf("⚠ 该语句被判定为高风险（%s），确认执行？\n  %s",
 					kind, truncate(sqlStr, 200))
@@ -97,10 +108,6 @@ SQL 来源（优先级从高到低）：
 
 			res, err := conn.Exec(ctx, sqlStr, sqlArgs...)
 			if err != nil {
-				// ErrWriteDisabled 来自 guard，给出更友好的提示。
-				if errors.Is(err, driver.ErrWriteDisabled) {
-					return fmt.Errorf("%w\n提示：在配置里给该数据源设置 allow_write: true 以启用写操作", err)
-				}
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "OK (rows affected: %d)\n", res.RowsAffected)
@@ -192,6 +199,20 @@ func capRows(res *driver.Result, limit int) *driver.Result {
 	}
 	res.Rows = res.Rows[:limit]
 	return res
+}
+
+// currentDatasourceName 返回当前生效的数据源名（-d 指定 或 配置的 default），
+// 供错误提示引用。解析失败时回退为 "unknown"。
+func currentDatasourceName() string {
+	cfg, err := loadConfig()
+	if err != nil {
+		return "unknown"
+	}
+	name, err := resolveDatasource(cfg)
+	if err != nil {
+		return "unknown"
+	}
+	return name
 }
 
 // truncate 截断长字符串用于提示。
