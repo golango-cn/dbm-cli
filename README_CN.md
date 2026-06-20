@@ -180,7 +180,7 @@ dbm-cli table  -d prod-ro --name EMP --limit 5 -o csv      # CSV
 
 ## 🏗️ 架构
 
-完整设计见 [PLAN.md](PLAN.md)。核心设计模式：
+dbm-cli 围绕 driver 抽象构建，新增一种数据库几乎不改动现有代码。核心设计模式：
 
 | 模式 | 落点 |
 |------|------|

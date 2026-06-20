@@ -180,7 +180,7 @@ All errors go to stderr as `[dbm-cli] error: <message>`, often followed by a `[d
 
 ## 🏗️ Architecture
 
-See [PLAN.md](PLAN.md) for the full design. Core patterns:
+dbm-cli is built around a driver abstraction so that adding a database touches almost no existing code. Core patterns:
 
 | Pattern | Where |
 |---------|-------|
