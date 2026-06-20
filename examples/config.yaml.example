@@ -1,0 +1,101 @@
+# dbm-cli 配置范例。复制为 dbm-cli.yaml 并按需修改。
+# 密码建议用 ${ENV_VAR} 占位，从环境变量读取，避免明文入库。
+#
+# 全局可选字段（每个数据源均可配）：
+#   description: 数据源职责说明（人类/AI 可读），用于区分同类型数据源，如"生产订单库只读副本"
+#   timeout: 连接超时，如 10s。超时后报错并提示排查方向；默认 30s。
+
+# 未指定 -d/--datasource 时使用的默认数据源。
+default: prod-ro
+
+datasources:
+  # 只读数据源示例（生产）
+  prod-ro:
+    type: oracle
+    description: "生产订单库（只读副本），供查询与报表"  # 可选：职责说明，帮 AI 区分同类型数据源
+    host: 10.0.0.1
+    port: 1521
+    service_name: ORCLPDB1   # 与 sid 二选一
+    # sid: ORCL
+    user: readonly
+    password: ${DB_PWD_PROD} # 从环境变量 DB_PWD_PROD 读取
+    allow_write: false       # 默认即 false，写操作会被守卫拒绝
+    timeout: 10s             # 连接超时（默认 30s）
+    fetch_size: 1000
+
+  # 可写数据源示例（开发）
+  dev-rw:
+    type: oracle
+    description: "开发测试库（可写），用于变更与数据修复"  # 同为 oracle，但职责与 prod-ro 不同
+    host: 10.0.0.2
+    port: 1521
+    service_name: ORCLPDB1
+    user: dev
+    password: ${DB_PWD_DEV}
+    allow_write: true        # 开启后允许 INSERT/UPDATE/DELETE/DDL
+    max_open_conns: 5
+
+  # 受限账号无法访问 v$version 时，可强制指定版本跳过探测
+  legacy-11g:
+    type: oracle
+    host: 10.0.0.3
+    port: 1521
+    sid: LEGACY
+    user: reporter
+    password: ${DB_PWD_LEGACY}
+    force_version: 11g       # 跳过版本探测，按 11g 字典视图查询
+
+  # MySQL 数据源示例（5.6 / 5.7 / 8.0.x 通用）
+  mysql-prod:
+    type: mysql
+    host: 10.0.0.4
+    port: 3306
+    database: app_db         # 必填：MySQL 中 schema == database
+    user: readonly
+    password: ${DB_PWD_MYSQL}
+    allow_write: false
+    # tls: skip-verify        # 可选：自签证书场景启用 TLS（跳过证书校验）
+    # force_version: 8.0      # 可选：跳过版本探测
+
+  # MySQL 可写数据源
+  mysql-dev:
+    type: mysql
+    host: 10.0.0.5
+    port: 3306
+    database: app_db
+    user: dev
+    password: ${DB_PWD_MYSQL_DEV}
+    allow_write: true
+
+  # MariaDB 数据源示例（与 MySQL 协议兼容，用 mariadb 别名）
+  # 配置方式与 MySQL 完全一致，仅 type 不同
+  maria-prod:
+    type: mariadb             # 别名 -> mysql 驱动
+    host: 10.0.0.8
+    port: 3306
+    database: app_db
+    user: readonly
+    password: ${DB_PWD_MARIA}
+    allow_write: false
+
+  # ClickHouse 数据源示例（22.x+ 通用）
+  ck-prod:
+    type: clickhouse
+    host: 10.0.0.6
+    port: 9000               # 原生 TCP 端口（不是 8123 的 HTTP 端口）
+    database: analytics       # 库名（ClickHouse 中 database == schema）
+    user: default
+    password: ${DB_PWD_CK}
+    allow_write: false
+    # tls: skip-verify        # 可选：启用 TLS（跳过证书校验）
+
+  # PostgreSQL 数据源示例（9.6+ 通用）
+  pg-prod:
+    type: postgresql
+    host: 10.0.0.7
+    port: 5432
+    database: app_db          # 库名（PostgreSQL 中库与 schema 是两层概念）
+    user: postgres
+    password: ${DB_PWD_PG}
+    allow_write: false
+    # tls: skip-verify        # 可选：启用 TLS（sslmode=require）

@@ -1,0 +1,26 @@
+# Binaries
+/bin/
+/dist/
+dbm-cli
+*.exe
+
+# Local config (may contain secrets)
+dbm-cli.yaml
+dbm-cli.yml
+config.yaml
+config.yml
+!examples/config.yaml.example
+
+# demo/ is a local self-contained runtime (binary + local config).
+# Only the Makefile is tracked; the binary and dbm-cli.yaml are gitignored
+# above (dbm-cli binary and dbm-cli.yaml match anywhere).
+
+# Test / coverage
+*.out
+coverage.txt
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
