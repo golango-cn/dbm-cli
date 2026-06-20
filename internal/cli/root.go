@@ -77,6 +77,32 @@ func New() *cobra.Command {
 		newTableCmd(),
 		newQueryCmd(),
 	)
+
+	// 把 cobra 自动生成的 completion 命令描述改为中文。
+	// completion 命令由 InitDefaultCompletionCmd 生成，这里触发后改写其文案。
+	root.InitDefaultCompletionCmd()
+	for _, c := range root.Commands() {
+		if c.Name() != "completion" {
+			continue
+		}
+		c.Short = "生成 shell 自动补全脚本"
+		c.Long = `为 dbm-cli 生成指定 shell 的自动补全脚本。
+安装补全后，在终端输入 dbm-cli 并按 TAB 即可补全命令与参数。
+详见各子命令帮助（如 dbm-cli completion bash --help）。`
+		for _, sc := range c.Commands() {
+			switch sc.Name() {
+			case "bash":
+				sc.Short = "生成 bash 补全脚本"
+			case "zsh":
+				sc.Short = "生成 zsh 补全脚本"
+			case "fish":
+				sc.Short = "生成 fish 补全脚本"
+			case "powershell":
+				sc.Short = "生成 powershell 补全脚本"
+			}
+		}
+	}
+
 	return root
 }
 
