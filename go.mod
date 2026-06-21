@@ -6,6 +6,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/sclgo/impala v2.1.0+incompatible
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -15,6 +16,8 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/apache/thrift v0.13.0 // indirect
+	github.com/bippio/go-impala v2.1.0+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect

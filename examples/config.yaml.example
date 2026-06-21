@@ -99,3 +99,13 @@ datasources:
     password: ${DB_PWD_PG}
     allow_write: false
     # tls: skip-verify        # 可选：启用 TLS（sslmode=require）
+
+  # Apache Impala 数据源示例（3.x / 4.x）
+  impala-prod:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # HiveServer2 端口（不是 impala-shell 的 21000）
+    database: default          # 库名（Impala 中 database == schema）
+    # 无认证集群可不配 user/password；LDAP/Kerberos 集群则需配置
+    allow_write: false
+    timeout: 15s

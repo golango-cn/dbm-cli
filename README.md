@@ -6,9 +6,10 @@
 [![MySQL](https://img.shields.io/badge/MySQL-5.7%20~%208.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-22.x%2B-FFCC01?logo=clickhouse&logoColor=black)](https://clickhouse.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-9.6%2B-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Impala](https://img.shields.io/badge/Apache%20Impala-4.x-58AEE6?logo=apache&logoColor=white)](https://impala.apache.org/)
 
 > A **zero-external-dependency** database CLI: a single static binary queries database metadata and data.
-> Supports **Oracle** (10g–21c, pure-Go [go-ora](https://github.com/sijms/go-ora)), **MySQL / MariaDB** (5.7 / 8.0.x / MariaDB 10.x+, pure-Go [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)), **ClickHouse** (22.x+, pure-Go [clickhouse-go/v2](https://github.com/ClickHouse/clickhouse-go)), and **PostgreSQL** (9.6+, pure-Go [pgx/v5](https://github.com/jackc/pgx)) — all without Instant Client / CGO. Extensible to more databases through a driver interface.
+> Supports **Oracle** (10g–21c, pure-Go [go-ora](https://github.com/sijms/go-ora)), **MySQL / MariaDB** (5.7 / 8.0.x / MariaDB 10.x+, pure-Go [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)), **ClickHouse** (22.x+, pure-Go [clickhouse-go/v2](https://github.com/ClickHouse/clickhouse-go)), **PostgreSQL** (9.6+, pure-Go [pgx/v5](https://github.com/jackc/pgx)), and **Apache Impala** (3.x/4.x, pure-Go [impala-go](https://github.com/sclgo/impala)) — all without Instant Client / CGO. Extensible to more databases through a driver interface.
 > **AI-friendly**: `dbm-cli manifest` emits a self-describing JSON contract.
 
 [中文文档](README_CN.md)
@@ -22,6 +23,7 @@
 - 🐬 **MySQL 5.7 / 8.0.x & MariaDB** — metadata via `information_schema` (consistent across versions); supports `caching_sha2_password` (8.0 default auth) out of the box. MariaDB is protocol-compatible and usable via the `mariadb` type alias. Optional TLS (`skip-verify`) for self-signed certs.
 - ⚡ **ClickHouse 22.x+** — metadata via `system.*` tables; native TCP protocol (port 9000) for low overhead. Understands ClickHouse-specific types (`Nullable(...)`, `Array(...)`) and engine-based table types.
 - 🐘 **PostgreSQL 9.6+** — metadata via `information_schema` + `pg_catalog`; correct schema/database distinction; array-typed index columns parsed.
+- 🐝 **Apache Impala 3.x/4.x** — metadata via `SHOW`/`DESCRIBE` (no INFORMATION_SCHEMA); HiveServer2 protocol. Understands Impala has no traditional indexes (PARTITIONED/SORTED BY instead).
 - 🧩 **Extensible** — `Driver` + `MetadataProvider` + a registry. Adding a database means one new package and one `import _` line; core stays untouched (Open–Closed Principle).
 - 🔒 **Controlled writes** — every datasource has an `allow_write` switch (read-only by default). Destructive statements (`DROP` / `TRUNCATE` / `DELETE`/`UPDATE` without `WHERE`) require an interactive confirmation.
 - 🤖 **AI-friendly** — `dbm-cli manifest` outputs a JSON contract describing all commands, flags, drivers and examples, so an agent learns how to call the tool from a single read.
@@ -247,10 +249,11 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **Oracle driver** verified end-to-end against 18c XE
 - [x] **ClickHouse driver** (22.x+, verified end-to-end against 25.8)
 - [x] **PostgreSQL driver** (9.6+, verified end-to-end against 12 / 17)
+- [x] **Apache Impala driver** (3.x/4.x, verified end-to-end against 4.5.0)
 - [ ] M7 Polish: unit tests, cross-platform release
 - [ ] SQL Server driver
 
-> All four drivers (Oracle, MySQL, ClickHouse, PostgreSQL) are complete, pass `go vet` + `go build`, and have been verified end-to-end against live instances: Oracle 11g/18c XE, MySQL 5.7/8.0.12/8.0.37, ClickHouse 25.8, PostgreSQL 12/17.
+> All four drivers (Oracle, MySQL, ClickHouse, PostgreSQL) are complete, pass `go vet` + `go build`, and have been verified end-to-end against live instances: Oracle 11g/18c XE, MySQL 5.7/8.0.12/8.0.37, ClickHouse 25.8, PostgreSQL 12/17, Apache Impala 4.5.0.
 
 ## 🤝 Contributing
 

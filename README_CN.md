@@ -6,9 +6,10 @@
 [![MySQL](https://img.shields.io/badge/MySQL-5.7%20~%208.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-22.x%2B-FFCC01?logo=clickhouse&logoColor=black)](https://clickhouse.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-9.6%2B-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Impala](https://img.shields.io/badge/Apache%20Impala-4.x-58AEE6?logo=apache&logoColor=white)](https://impala.apache.org/)
 
 > **零外部依赖**的数据库命令行工具：**单个静态二进制**即可查询数据库元数据与数据。
-> 支持 **Oracle**（10g–21c，纯 Go [go-ora](https://github.com/sijms/go-ora)）、**MySQL / MariaDB**（5.7 / 8.0.x / MariaDB 10.x+，纯 Go [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)）、**ClickHouse**（22.x+，纯 Go [clickhouse-go/v2](https://github.com/ClickHouse/clickhouse-go)）、**PostgreSQL**（9.6+，纯 Go [pgx/v5](https://github.com/jackc/pgx)）——均无需 Instant Client / CGO。通过 driver 接口扩展更多数据库。
+> 支持 **Oracle**（10g–21c，纯 Go [go-ora](https://github.com/sijms/go-ora)）、**MySQL / MariaDB**（5.7 / 8.0.x / MariaDB 10.x+，纯 Go [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)）、**ClickHouse**（22.x+，纯 Go [clickhouse-go/v2](https://github.com/ClickHouse/clickhouse-go)）、**PostgreSQL**（9.6+，纯 Go [pgx/v5](https://github.com/jackc/pgx)）、**Apache Impala**（3.x/4.x，纯 Go [impala-go](https://github.com/sclgo/impala)）——均无需 Instant Client / CGO。通过 driver 接口扩展更多数据库。
 > **面向 AI**：`dbm-cli manifest` 输出自描述 JSON 契约。
 
 [English](README.md)
@@ -22,6 +23,7 @@
 - 🐬 **MySQL 5.7 / 8.0.x 与 MariaDB** —— 元数据走 `information_schema`（跨版本一致）；原生支持 `caching_sha2_password`（8.0 默认认证）。MariaDB 协议兼容，通过 `mariadb` 类型别名即可使用。可选 TLS（`skip-verify`）适配自签证书。
 - ⚡ **ClickHouse 22.x+** —— 元数据走 `system.*` 表；原生 TCP 协议（9000 端口）低开销。理解 ClickHouse 专有类型（`Nullable(...)`、`Array(...)`）与基于引擎的表类型。
 - 🐘 **PostgreSQL 9.6+** —— 元数据走 `information_schema` + `pg_catalog`；正确区分 schema/database；解析数组类型的索引列。
+- 🐝 **Apache Impala 3.x/4.x** —— 元数据走 `SHOW`/`DESCRIBE`（Impala 无 INFORMATION_SCHEMA）；HiveServer2 协议。理解 Impala 无传统索引（用 PARTITIONED/SORTED BY 替代）。
 - 🧩 **可扩展** —— `Driver` + `MetadataProvider` + 注册表设计。新增数据库只需新建一个包并 `import _`，核心代码无需改动（开闭原则）。
 - 🔒 **读写受控** —— 每个数据源 `allow_write` 开关（默认只读）。危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）需交互式确认。
 - 🤖 **AI 友好** —— `dbm-cli manifest` 输出 JSON 契约，描述全部命令、参数、驱动与示例，AI 读取一次即学会如何调用。
@@ -247,10 +249,11 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **Oracle 驱动**已对 18c XE 端到端验证
 - [x] **ClickHouse 驱动**（22.x+，已对 25.8 端到端验证）
 - [x] **PostgreSQL 驱动**（9.6+，已对 12 / 17 端到端验证）
+- [x] **Apache Impala 驱动**（3.x/4.x，已对 4.5.0 端到端验证）
 - [ ] M7 打磨：单元测试、跨平台发布
 - [ ] SQL Server 驱动
 
-> 四个驱动（Oracle / MySQL / ClickHouse / PostgreSQL）全部完成，通过 `go vet` + `go build`，并已对真实实例端到端验证：Oracle 11g/18c XE、MySQL 5.7/8.0.12/8.0.37、ClickHouse 25.8、PostgreSQL 12/17。
+> 四个驱动（Oracle / MySQL / ClickHouse / PostgreSQL）全部完成，通过 `go vet` + `go build`，并已对真实实例端到端验证：Oracle 11g/18c XE、MySQL 5.7/8.0.12/8.0.37、ClickHouse 25.8、PostgreSQL 12/17、Apache Impala 4.5.0。
 
 ## 🤝 贡献
 

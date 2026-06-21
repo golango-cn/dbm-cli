@@ -25,6 +25,7 @@ import (
 
 	// 触发已实现 driver 的自注册。
 	_ "github.com/golango-cn/dbm-cli/internal/clickhouse"
+	_ "github.com/golango-cn/dbm-cli/internal/impala"
 	_ "github.com/golango-cn/dbm-cli/internal/mysql"
 	_ "github.com/golango-cn/dbm-cli/internal/oracle"
 	_ "github.com/golango-cn/dbm-cli/internal/postgresql"

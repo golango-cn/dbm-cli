@@ -25,6 +25,7 @@ import (
 	// 空导入：触发各 driver 的 init() 自注册。
 	// 每新增一个数据源，在此追加一行 import _ "..."。
 	_ "github.com/golango-cn/dbm-cli/internal/clickhouse"
+	_ "github.com/golango-cn/dbm-cli/internal/impala"
 	_ "github.com/golango-cn/dbm-cli/internal/mysql"
 	_ "github.com/golango-cn/dbm-cli/internal/oracle"
 	_ "github.com/golango-cn/dbm-cli/internal/postgresql"
