@@ -29,6 +29,7 @@ import (
 	_ "github.com/golango-cn/dbm-cli/internal/mysql"
 	_ "github.com/golango-cn/dbm-cli/internal/oracle"
 	_ "github.com/golango-cn/dbm-cli/internal/postgresql"
+	_ "github.com/golango-cn/dbm-cli/internal/sqlserver"
 )
 
 // Datasource 是对外暴露的数据源配置（internal 类型的稳定投影）。

@@ -109,3 +109,14 @@ datasources:
     # 无认证集群可不配 user/password；LDAP/Kerberos 集群则需配置
     allow_write: false
     timeout: 15s
+
+  # Microsoft SQL Server 数据源示例（2017+）
+  mssql-prod:
+    type: sqlserver
+    host: 10.0.0.10
+    port: 1433
+    database: app_db          # 库名（SQL Server 中库与 schema 是两层概念，默认 schema 是 dbo）
+    user: sa
+    password: ${DB_PWD_MSSQL}
+    allow_write: false
+    timeout: 15s

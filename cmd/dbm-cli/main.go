@@ -29,6 +29,7 @@ import (
 	_ "github.com/golango-cn/dbm-cli/internal/mysql"
 	_ "github.com/golango-cn/dbm-cli/internal/oracle"
 	_ "github.com/golango-cn/dbm-cli/internal/postgresql"
+	_ "github.com/golango-cn/dbm-cli/internal/sqlserver"
 )
 
 func main() {
