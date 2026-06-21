@@ -19,11 +19,32 @@ DS     ?= $(shell sed -n 's/^default:[[:space:]]*//p' $(CONFIG) 2>/dev/null)
 # 统一演示表（由 init 目标创建）
 TBL    := dbm_demo
 
-.PHONY: help all manifest init demo meta data formats
+.PHONY: help all manifest init demo meta data formats \
+        mysql ck oracle postgres
 
 ## help: 显示本说明
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## //'
+
+## mysql: 跑 MySQL 演示脚本（version/databases/schemas/tables/columns/indexes/views/table/query/输出格式）
+##   命令全部写死在 demo-mysql.sh，数据源 mysql837（MySQL 8.0.37）
+mysql:
+	@./demo-mysql.sh
+
+## ck: 跑 ClickHouse 演示脚本（version/databases/tables/columns/indexes/views/table/query/输出格式）
+##   命令全部写死在 demo-clickhouse.sh，数据源 ck25（ClickHouse 25.8）
+ck:
+	@./demo-clickhouse.sh
+
+## oracle: 跑 Oracle 演示脚本（version/databases(PDB)/schemas/tables/columns/indexes/views/table/query）
+##   命令全部写死在 demo-oracle.sh，数据源 oracle18c（Oracle 18c XE）
+oracle:
+	@./demo-oracle.sh
+
+## postgres: 跑 PostgreSQL 演示脚本（version/databases/schemas/tables/columns/indexes/views/table/query）
+##   命令全部写死在 demo-postgresql.sh，数据源 pg17（PostgreSQL 17.10）
+postgres:
+	@./demo-postgresql.sh
 
 ## manifest: 支持的驱动清单
 manifest:
@@ -78,5 +99,6 @@ formats:
 test_write:
 	@./test-write-guard.sh $(DS)
 
-## all: manifest + demo + meta + data
-all: manifest demo meta data
+## all: manifest + 各数据库类型演示(mysql/ck/oracle/postgres) + meta + data
+##   注：all 不含 demo/init（demo 依赖通用 DS、init 会写库），避免覆盖式副作用。
+all: manifest mysql ck oracle postgres meta data
