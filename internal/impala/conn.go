@@ -17,8 +17,6 @@ type conn struct {
 }
 
 // buildDSN 构造 impala-go 的 DSN。
-// impala-go 接受 impala://user:pass@host:port?auth=... 形式。
-// quickstart 集群默认无认证（noauth），auth 留空即可。
 func buildDSN(cfg *driver.DatasourceConfig) string {
 	u := url.URL{Scheme: "impala", Host: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)}
 	if cfg.User != "" {
@@ -29,12 +27,10 @@ func buildDSN(cfg *driver.DatasourceConfig) string {
 		}
 	}
 	q := u.Query()
-	// 默认无认证（quickstart 场景）。如需 LDAP/NOSASL 等，可由 Raw 扩展。
 	if normalizeTLS(cfg.TLS) {
 		q.Set("tls", "true")
 	}
 	if cfg.Database != "" {
-		// 用 use 参数让驱动连上后自动 USE 该库（Impala 概念中库 == database/schema）
 		q.Set("use", cfg.Database)
 	}
 	u.RawQuery = q.Encode()
@@ -42,24 +38,44 @@ func buildDSN(cfg *driver.DatasourceConfig) string {
 }
 
 // newPool 构建并配置连接池。
+// Impala 的"当前库"是连接级状态：USE 只作用于执行它的那条连接。
+// 为确保 Query 里先 USE 再查的语义在同一物理连接上成立，强制单连接池。
 func newPool(cfg *driver.DatasourceConfig) (*sql.DB, error) {
 	dsn := buildDSN(cfg)
 	db, err := sql.Open("impala", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("impala: open: %w", err)
 	}
-	if cfg.MaxOpenConns > 0 {
-		db.SetMaxOpenConns(cfg.MaxOpenConns)
-	}
-	if cfg.MaxIdleConns > 0 {
-		db.SetMaxIdleConns(cfg.MaxIdleConns)
-	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	return db, nil
 }
 
+// leasedConn 借一条固定连接并确保当前库正确。
+// Impala 当前库是连接级状态，必须先 USE 再在同一连接上执行后续 SQL。
+func (c *conn) leasedConn(ctx context.Context) (*sql.Conn, error) {
+	conn, err := c.pool.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("impala: get conn: %w", err)
+	}
+	if c.cfg.Database != "" {
+		if _, err := conn.ExecContext(ctx, "USE "+quoteIdent(c.cfg.Database)); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("impala: USE %s: %w", c.cfg.Database, err)
+		}
+	}
+	return conn, nil
+}
+
 // Query 执行返回结果集的语句。
+// 用专属连接（pool.Conn），先 USE 再查，保证当前库正确。
 func (c *conn) Query(ctx context.Context, query string, args ...any) (*driver.Result, error) {
-	rows, err := c.pool.QueryContext(ctx, query, args...)
+	conn, err := c.leasedConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("impala: query: %w", err)
 	}
@@ -86,11 +102,14 @@ func (c *conn) Query(ctx context.Context, query string, args ...any) (*driver.Re
 	return result, nil
 }
 
-// Exec 执行写语句。权限由 cli 层 WriteGuard 控制。
-// 注意：HiveServer2 的写操作（INSERT/CREATE 等）通过同一查询接口执行，
-// 返回的 RowsAffected 在 Impala 上通常为 0（它不精确统计）。
+// Exec 执行写语句。同样用专属连接先 USE。
 func (c *conn) Exec(ctx context.Context, query string, args ...any) (driver.ExecResult, error) {
-	res, err := c.pool.ExecContext(ctx, query, args...)
+	conn, err := c.leasedConn(ctx)
+	if err != nil {
+		return driver.ExecResult{}, err
+	}
+	defer conn.Close()
+	res, err := conn.ExecContext(ctx, query, args...)
 	if err != nil {
 		return driver.ExecResult{}, fmt.Errorf("impala: exec: %w", err)
 	}
@@ -103,10 +122,16 @@ func (c *conn) Version(ctx context.Context) (*driver.DBVersion, error) {
 	if c.version != nil {
 		return c.version, nil
 	}
-	v, err := detectVersion(ctx, c.pool, c.cfg.ForceVersion)
+	conn, err := c.leasedConn(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
+	var verStr string
+	if err := conn.QueryRowContext(ctx, "SELECT version()").Scan(&verStr); err != nil {
+		return nil, fmt.Errorf("impala: cannot read version(): %w", err)
+	}
+	v := parseVersionString(verStr)
 	c.version = v
 	return v, nil
 }
@@ -115,7 +140,13 @@ func (c *conn) Version(ctx context.Context) (*driver.DBVersion, error) {
 func (c *conn) Metadata() driver.MetadataProvider { return &metadataProvider{conn: c} }
 
 // Ping 验证连接。
-func (c *conn) Ping(ctx context.Context) error { return c.pool.PingContext(ctx) }
+func (c *conn) Ping(ctx context.Context) error {
+	conn, err := c.leasedConn(ctx)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}
 
 // Close 关闭连接池。
 func (c *conn) Close() error {
