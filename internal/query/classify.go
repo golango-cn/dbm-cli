@@ -59,7 +59,7 @@ func Classify(sql string) Kind {
 }
 
 // IsDestructive 粗略判断语句是否属于「高风险、可能造成数据丢失」类别，
-// 用于触发交互式二次确认（PLAN.md §6 安全守卫）。
+// 用于触发交互式二次确认（安全守卫）。
 // 包含：DROP / TRUNCATE，以及无 WHERE 的 DELETE / UPDATE。
 func IsDestructive(sql string) bool {
 	kw := firstKeyword(sql)

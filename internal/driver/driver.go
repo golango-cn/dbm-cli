@@ -5,7 +5,7 @@
 // init() 里调用 Register 即可被 CLI 使用，无需改动 cli 与 driver 核心。
 // 这体现「对扩展开放、对修改封闭」（OCP）。
 //
-// 涉及的设计模式见 PLAN.md §3.4：
+// 涉及的设计模式：
 //   - Strategy：MetadataProvider 的不同实现
 //   - Registry / Factory：Register/Get
 //   - Adapter：把各驱动（如 go-ora）差异适配成统一 Conn
