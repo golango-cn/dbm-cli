@@ -19,16 +19,25 @@ var envPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 // 但不包含显式 --config 指定的路径（该路径在 Load 中单独处理）。
 // 注意：这里返回的都是「候选」，首个存在者生效。
 //
-// 默认主位置是 ~/.dbm-cli.yaml；此外也兼容当前目录与 XDG 标准位置。
+// 规范的配置文件名是 .dbm-cli.yaml（dotfile 形式，cwd 与 home 一致）；
+// 此外也兼容不带点的 dbm-cli.yaml/.yml 与 XDG 标准位置。
 func DefaultSearchPaths() []string {
 	var paths []string
-	// 当前工作目录
+	// 1. 当前工作目录：带点形式优先（规范命名），不带点形式兼容
 	if cwd, err := os.Getwd(); err == nil {
-		paths = append(paths, filepath.Join(cwd, "dbm-cli.yaml"), filepath.Join(cwd, "dbm-cli.yml"))
+		paths = append(paths,
+			filepath.Join(cwd, ".dbm-cli.yaml"),
+			filepath.Join(cwd, ".dbm-cli.yml"),
+			filepath.Join(cwd, "dbm-cli.yaml"),
+			filepath.Join(cwd, "dbm-cli.yml"),
+		)
 	}
-	// 2. 用户主目录的 ~/.dbm-cli.yaml（推荐的主默认位置）
+	// 2. 用户主目录：~/.dbm-cli.yaml（推荐的主默认位置）
 	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".dbm-cli.yaml"))
+		paths = append(paths,
+			filepath.Join(home, ".dbm-cli.yaml"),
+			filepath.Join(home, ".dbm-cli.yml"),
+		)
 	}
 	// 3. XDG: $XDG_CONFIG_HOME/dbm-cli/config.yaml，回退到 ~/.config/dbm-cli/config.yaml
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
@@ -55,7 +64,7 @@ func Load(path string) (*File, error) {
 }
 
 // ErrNotFound 表示未找到任何配置文件。
-var ErrNotFound = errors.New("config: no dbm-cli config file found (create ~/.dbm-cli.yaml or ./dbm-cli.yaml, or set --config)")
+var ErrNotFound = errors.New("config: no dbm-cli config file found (create ./.dbm-cli.yaml or ~/.dbm-cli.yaml, or set --config)")
 
 func loadFrom(path string) (*File, error) {
 	raw, err := os.ReadFile(path)

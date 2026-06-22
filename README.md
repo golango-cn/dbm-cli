@@ -29,6 +29,7 @@
 - 🧩 **Extensible** — `Driver` + `MetadataProvider` + a registry. Adding a database means one new package and one `import _` line; core stays untouched (Open–Closed Principle).
 - 🔒 **Controlled writes** — every datasource has an `allow_write` switch (read-only by default). Destructive statements (`DROP` / `TRUNCATE` / `DELETE`/`UPDATE` without `WHERE`) require an interactive confirmation.
 - 🤖 **AI-friendly** — `dbm-cli manifest` outputs a JSON contract describing all commands, flags, drivers and examples, so an agent learns how to call the tool from a single read.
+- 🔌 **MCP server** — `dbm-cli mcp` exposes the same capabilities (metadata, sample data, SQL) as a Model Context Protocol server over stdio, so AI clients like Claude Desktop / Cursor can call the database directly. Zero impact on existing CLI commands.
 - 🎨 **Multiple output formats** — `table` / `json` / `csv` / `yaml` / `vertical`.
 - 🧭 **Machine-friendly errors** — every failure is printed to stderr as `[dbm-cli] error: <reason>` with a retry hint, and exit codes distinguish *retryable* (1) from *config-required* (2) failures.
 
@@ -207,6 +208,46 @@ dbm-cli table  -d prod-ro --name EMP --limit 5 -o csv      # CSV
 | 2 | config / connection-class error (missing config, write-guard rejection) | fix config or `allow_write` before retry |
 
 All errors go to stderr as `[dbm-cli] error: <message>`, often followed by a `[dbm-cli] hint:` line telling you exactly what to change before retrying.
+
+## 🔌 MCP server (for AI clients)
+
+`dbm-cli mcp` runs the tool as a **Model Context Protocol** server over stdio. AI clients (Claude Desktop, Cursor, etc.) can connect to it and call the database directly — no need to shell out to CLI commands.
+
+It exposes **11 tools**, mirroring the CLI one-to-one:
+
+| MCP tool | Equivalent CLI | Purpose |
+|----------|----------------|---------|
+| `list_datasources` | `datasources` | list configured datasources (no connection) |
+| `get_version` | `version` | engine + version |
+| `list_databases` | `databases` | databases / PDBs |
+| `list_schemas` | `schemas` | schemas / users |
+| `list_tables` | `tables` | tables in a schema |
+| `describe_table` | `columns` | column definitions |
+| `list_indexes` | `indexes` | table indexes |
+| `list_views` | `views` | views |
+| `sample_table` | `table` | paginated table data |
+| `query` | `query` (read) | read-only SQL with `?` placeholders |
+| `execute` | `query` (write) | write SQL, gated by `allow_write` |
+
+**Safety is inherited, not re-implemented**: every connection goes through the same `allow_write` guard as the CLI, so a read-only datasource rejects writes identically. Since MCP has no interactive terminal, the `execute` tool is *stricter* than the CLI — destructive statements (`DROP` / `TRUNCATE` / `DELETE`/`UPDATE` without `WHERE`) require an explicit `confirm_destructive: true` argument.
+
+### Configure in Claude Desktop
+
+```jsonc
+{
+  "mcpServers": {
+    "dbm-cli": {
+      "command": "/path/to/dbm-cli",
+      "args": ["mcp"]
+      // optional: "args": ["mcp", "-c", "/path/to/dbm-cli.yaml"]
+    }
+  }
+}
+```
+
+The server reads the same YAML config as the CLI (see [Configuration](#️-configuration)). Each tool takes an optional `datasource` argument (falls back to the configured `default`).
+
+> The `mcp` subcommand is additive — it does not change any existing CLI command. Users who never call `dbm-cli mcp` are completely unaffected.
 
 ## 🏗️ Architecture
 

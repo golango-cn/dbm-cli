@@ -45,7 +45,7 @@ func main() {
 	switch {
 	case errors.Is(err, config.ErrNotFound):
 		// 配置文件缺失——重试前需创建配置。
-		fmt.Fprintln(os.Stderr, "[dbm-cli] hint: 创建配置文件 ./dbm-cli.yaml（参考 examples/config.yaml.example）后重试，或用 -c 指定路径。")
+		fmt.Fprintln(os.Stderr, "[dbm-cli] hint: 创建配置文件 ./.dbm-cli.yaml（参考 examples/config.yaml.example）后重试，或用 -c 指定路径。")
 		os.Exit(2)
 	case errors.Is(err, driver.ErrWriteDisabled):
 		// 写操作被守卫拒绝——重试前需改 allow_write。

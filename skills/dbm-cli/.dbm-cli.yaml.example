@@ -1,0 +1,139 @@
+# dbm-cli 数据源配置示例。
+# 用法：复制为 ~/.dbm-cli.yaml（或项目内 ./dbm-cli.yaml），按实际环境改 host/port/user/password。
+#
+# 命名规范（强烈建议）： <ip>_<datasourcetype>_<database>_<env>
+#   例： 10.10.239.152_mysql_bdmp_dev
+#        10.10.0.7_postgresql_appdb_prod
+#   - 同一 IP 上多个库可用后缀区分；env 用 dev/test/prod 标识风险等级。
+#   - AI 与人都能从名字直接判断连接目标，避免误连生产。
+#
+# 密码建议用 ${ENV_VAR} 占位从环境变量读取，避免明文入库；
+# 也可直接写明文（仅限本地/测试）。
+#
+# 支持的 type: mysql / mariadb(=mysql) / postgresql / oracle / sqlserver / clickhouse / impala
+#
+# 所有数据源通用可选字段：
+#   description:  职责说明（帮 AI 区分同类型数据源），如"生产订单库只读副本"
+#   allow_write:  是否允许写（INSERT/UPDATE/DELETE/DDL）。默认 false（只读，安全）。
+#   timeout:      连接超时，如 10s。默认 30s。
+#   force_version: 跳过版本探测强制指定版本（受限账号无法访问 v$version 时用），如 "11g" / "8.0"。
+
+# 未指定 -d/--datasource 时使用的默认数据源。
+default: 10.10.239.152_mysql_bdmp_dev
+
+datasources:
+
+  # ───────────── MySQL / MariaDB ─────────────
+  # schema == database；database 字段必填。
+  10.10.239.152_mysql_bdmp_dev:
+    type: mysql
+    description: "边缘数据计算平台开发环境 MySQL（bdmp 库，只读）"
+    host: 10.10.239.152
+    port: 3309
+    database: bdmp
+    user: root
+    password: ${DB_PWD_152_MYSQL_BDMP}
+    allow_write: false
+    timeout: 10s
+    fetch_size: 1000
+    # tls: skip-verify          # 可选：自签证书启用 TLS（跳过证书校验）
+    # force_version: 8.0        # 可选：跳过版本探测
+
+  # 可写的 dev 数据源（同库不同账号 / 不同 env）
+  10.10.239.152_mysql_bdmp_dev_rw:
+    type: mysql
+    description: "边缘数据计算平台开发环境 MySQL（bdmp 库，可写，变更/数据修复用）"
+    host: 10.10.239.152
+    port: 3309
+    database: bdmp
+    user: root
+    password: ${DB_PWD_152_MYSQL_BDMP}
+    allow_write: true           # 开启后允许写；危险语句仍受守卫保护
+
+  # MariaDB（与 MySQL 协议兼容，仅 type 不同）
+  10.10.0.5_mariadb_appdb_prod:
+    type: mariadb               # 别名 -> mysql 驱动
+    description: "生产 MariaDB 应用库（只读）"
+    host: 10.10.0.5
+    port: 3306
+    database: appdb
+    user: readonly
+    password: ${DB_PWD_MARIA}
+    allow_write: false
+
+  # ───────────── PostgreSQL ─────────────
+  # database 与 schema 是两层概念；database 必填，schema 在查询时用 --schema 指定（默认 public）。
+  10.10.0.7_postgresql_appdb_prod:
+    type: postgresql
+    description: "生产 PostgreSQL 应用库（只读）"
+    host: 10.10.0.7
+    port: 5432
+    database: appdb
+    user: reporter
+    password: ${DB_PWD_PG}
+    allow_write: false
+    # tls: skip-verify          # 可选：sslmode=require
+
+  # ───────────── Oracle ─────────────
+  # service_name 与 sid 二选一；版本自动探测（10g~21c），受限账号可用 force_version。
+  10.10.239.152_oracle_helowin_test:
+    type: oracle
+    description: "边缘数据计算平台测试环境 Oracle（helowin，可写）"
+    host: 10.10.239.152
+    port: 1521
+    service_name: helowin       # 与 sid 二选一
+    # sid: ORCL
+    user: system
+    password: helowin
+    allow_write: true
+    max_open_conns: 5
+
+  # 受限账号无法访问 v$version 时强制指定版本
+  10.10.0.3_oracle_legacy_11g:
+    type: oracle
+    description: "遗留 11g Oracle（只读，受限账号）"
+    host: 10.10.0.3
+    port: 1521
+    sid: LEGACY
+    user: reporter
+    password: ${DB_PWD_LEGACY}
+    force_version: 11g          # 跳过版本探测，按 11g 字典视图查询
+    allow_write: false
+
+  # ───────────── Microsoft SQL Server ─────────────
+  # database 与 schema 两层概念，默认 schema 是 dbo。
+  10.10.0.10_sqlserver_appdb_prod:
+    type: sqlserver
+    description: "生产 SQL Server 应用库（只读）"
+    host: 10.10.0.10
+    port: 1433
+    database: appdb
+    user: sa
+    password: ${DB_PWD_MSSQL}
+    allow_write: false
+    timeout: 15s
+
+  # ───────────── ClickHouse ─────────────
+  # database == schema；端口用原生 TCP 9000（不是 HTTP 8123）。
+  10.10.177.19_clickhouse_default_dev:
+    type: clickhouse
+    description: "开发环境 ClickHouse（analytics 库，只读）"
+    host: 10.10.177.19
+    port: 9000                  # 原生 TCP 端口（非 8123）
+    database: analytics
+    user: default
+    password: ${DB_PWD_CK}
+    allow_write: false
+    # tls: skip-verify          # 可选：启用 TLS（跳过证书校验）
+
+  # ───────────── Apache Impala ─────────────
+  # database == schema；端口用 HiveServer2 的 21050（不是 impala-shell 的 21000）。
+  # 无认证集群可不配 user/password；LDAP/Kerberos 集群则需配置。
+  10.10.0.9_impala_default_prod:
+    type: impala
+    description: "生产 Impala（default 库，只读）"
+    host: 10.10.0.9
+    port: 21050                 # HiveServer2 端口
+    database: default
+    allow_write: false
+    timeout: 15s

@@ -29,6 +29,7 @@
 - 🧩 **可扩展** —— `Driver` + `MetadataProvider` + 注册表设计。新增数据库只需新建一个包并 `import _`，核心代码无需改动（开闭原则）。
 - 🔒 **读写受控** —— 每个数据源 `allow_write` 开关（默认只读）。危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）需交互式确认。
 - 🤖 **AI 友好** —— `dbm-cli manifest` 输出 JSON 契约，描述全部命令、参数、驱动与示例，AI 读取一次即学会如何调用。
+- 🔌 **MCP server** —— `dbm-cli mcp` 以 Model Context Protocol server（stdio）形式暴露同样的能力（元数据、采样数据、SQL），让 Claude Desktop / Cursor 等 AI 客户端直接调用数据库。对现有 CLI 命令零影响。
 - 🎨 **多种输出格式** —— `table` / `json` / `csv` / `yaml` / `vertical`。
 - 🧭 **机器友好的错误** —— 任何失败都以 `[dbm-cli] error: <原因>` 形式打印到 stderr，附带重试提示；退出码区分「可重试」（1）与「需改配置」（2）。
 
@@ -207,6 +208,46 @@ dbm-cli table  -d prod-ro --name EMP --limit 5 -o csv      # CSV
 | 2 | 配置/连接类错误（缺少配置、写守卫拒绝） | 重试前需修改配置或 `allow_write` |
 
 所有错误以 `[dbm-cli] error: <消息>` 形式输出到 stderr，常附带一行 `[dbm-cli] hint:` 告诉你重试前具体要改什么。
+
+## 🔌 MCP server（面向 AI 客户端）
+
+`dbm-cli mcp` 把工具作为 **Model Context Protocol** server（stdio 传输）运行。AI 客户端（Claude Desktop、Cursor 等）可直接接入并调用数据库，无需手动拼接 CLI 命令。
+
+它暴露 **11 个 tool**，与 CLI 一一对应：
+
+| MCP tool | 对应 CLI | 用途 |
+|----------|----------|------|
+| `list_datasources` | `datasources` | 列出已配置数据源（不连库） |
+| `get_version` | `version` | 引擎与版本 |
+| `list_databases` | `databases` | 库 / PDB |
+| `list_schemas` | `schemas` | schema / user |
+| `list_tables` | `tables` | 某 schema 下的表 |
+| `describe_table` | `columns` | 列定义 |
+| `list_indexes` | `indexes` | 表索引 |
+| `list_views` | `views` | 视图 |
+| `sample_table` | `table` | 分页采样表数据 |
+| `query` | `query`（只读） | 只读 SQL，`?` 占位符 |
+| `execute` | `query`（写） | 写 SQL，受 `allow_write` 守卫 |
+
+**安全模型是继承的，不是重做的**：每个连接都走和 CLI 相同的 `allow_write` 守卫，只读数据源在 MCP 层同样拒绝写操作。由于 MCP 没有交互终端，`execute` tool 比 CLI **更严格**——危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）必须显式传 `confirm_destructive: true` 参数才会执行。
+
+### 在 Claude Desktop 中配置
+
+```jsonc
+{
+  "mcpServers": {
+    "dbm-cli": {
+      "command": "/path/to/dbm-cli",
+      "args": ["mcp"]
+      // 可选: "args": ["mcp", "-c", "/path/to/dbm-cli.yaml"]
+    }
+  }
+}
+```
+
+server 读取与 CLI 相同的 YAML 配置（见[配置](#️-配置)）。每个 tool 接受可选的 `datasource` 参数（缺省回退到配置里的 `default`）。
+
+> `mcp` 子命令是纯增量——它不改变任何现有 CLI 命令。从不调用 `dbm-cli mcp` 的用户完全不受影响。
 
 ## 🏗️ 架构
 

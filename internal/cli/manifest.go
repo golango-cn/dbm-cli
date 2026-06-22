@@ -37,12 +37,12 @@ func commandInfos() []manifest.CommandInfo {
 		{Name: "datasources", Summary: "列出已配置数据源", Usage: "dbm-cli datasources",
 			Examples: []string{"dbm-cli datasources"}},
 		{Name: "version", Summary: "查询目标数据库版本", Usage: "dbm-cli version -d <ds>",
-			Flags: []manifest.Flag{{Name: "datasource", Shorthand: "d", Usage: "数据源名"}},
+			Flags:    []manifest.Flag{{Name: "datasource", Shorthand: "d", Usage: "数据源名"}},
 			Examples: []string{"dbm-cli version -d prod-ro"}},
 		{Name: "databases", Summary: "列出库/PDB", Usage: "dbm-cli databases -d <ds>",
 			Examples: []string{"dbm-cli databases -d prod-ro"}},
 		{Name: "schemas", Summary: "列出 schema", Usage: "dbm-cli schemas -d <ds> [--like PATTERN]",
-			Flags: []manifest.Flag{{Name: "like", Usage: "名称模糊匹配"}},
+			Flags:    []manifest.Flag{{Name: "like", Usage: "名称模糊匹配"}},
 			Examples: []string{"dbm-cli schemas -d prod-ro --like HR%"}},
 		{Name: "tables", Summary: "列出表", Usage: "dbm-cli tables -d <ds> [--schema S] [--like P]",
 			Flags: []manifest.Flag{
@@ -63,7 +63,7 @@ func commandInfos() []manifest.CommandInfo {
 			},
 			Examples: []string{"dbm-cli indexes -d prod-ro --table EMPLOYEES"}},
 		{Name: "views", Summary: "列出视图", Usage: "dbm-cli views -d <ds> [--schema S]",
-			Flags: []manifest.Flag{{Name: "schema", Usage: "schema 名"}},
+			Flags:    []manifest.Flag{{Name: "schema", Usage: "schema 名"}},
 			Examples: []string{"dbm-cli views -d prod-ro --schema HR"}},
 		{Name: "table", Summary: "分页查表数据", Usage: "dbm-cli table -d <ds> --name T [--schema S] [--limit N] [--offset N] [--order COL]",
 			Flags: []manifest.Flag{
@@ -75,7 +75,7 @@ func commandInfos() []manifest.CommandInfo {
 			},
 			Examples: []string{"dbm-cli table -d prod-ro --name EMPLOYEES --schema HR --limit 20 -o json"}},
 		{Name: "query", Summary: "执行任意 SQL（只读直执行；写受 allow_write 守卫；支持文件/stdin/参数绑定）",
-			Usage:     "dbm-cli query -d <ds> \"SQL\" [--file F] [--param V ...] [--limit N] [--yes]",
+			Usage: "dbm-cli query -d <ds> \"SQL\" [--file F] [--param V ...] [--limit N] [--yes]",
 			Flags: []manifest.Flag{
 				{Name: "file", Shorthand: "f", Usage: "从文件读取 SQL（优先级高于 stdin 与命令行参数）"},
 				{Name: "param", Usage: "绑定到 ? 占位符的参数值，按顺序，可多次指定；自动按引擎转换为 ?/$1/:1"},
@@ -88,6 +88,12 @@ func commandInfos() []manifest.CommandInfo {
 				"dbm-cli query -d prod-ro -f /path/to/report.sql --limit 500",
 				"echo \"SELECT COUNT(*) FROM orders\" | dbm-cli query -d prod-ro",
 				"dbm-cli query -d dev-rw \"DELETE FROM tmp WHERE id=1\" --yes",
+			}},
+		{Name: "mcp", Summary: "启动 MCP server（stdio），供 AI 客户端（Claude Desktop/Cursor）调用数据库工具",
+			Usage: "dbm-cli mcp",
+			Examples: []string{
+				"dbm-cli mcp   # 在 stdio 上启动 MCP server，供 MCP 客户端接入",
+				"# Claude Desktop 配置：{\"command\":\"dbm-cli\",\"args\":[\"mcp\"]}",
 			}},
 	}
 }

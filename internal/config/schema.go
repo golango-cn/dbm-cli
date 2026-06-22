@@ -2,9 +2,9 @@
 //
 // 配置文件查找顺序（首个命中即用）：
 //  1. --config 指定的路径
-//  2. 当前目录 ./dbm.yaml
-//  3. $XDG_CONFIG_HOME/dbm/config.yaml（或 ~/.config/dbm/config.yaml）
-//  4. ~/.dbm.yaml
+//  2. 当前目录：./.dbm-cli.yaml → ./.dbm-cli.yml → ./dbm-cli.yaml → ./dbm-cli.yml
+//  3. 用户主目录：~/.dbm-cli.yaml → ~/.dbm-cli.yml
+//  4. $XDG_CONFIG_HOME/dbm-cli/config.yaml（或 ~/.config/dbm-cli/config.yaml）
 //
 // 配置内支持 ${ENV_VAR} 占位，加载时从环境变量展开，避免在文件里明文存放密码。
 package config

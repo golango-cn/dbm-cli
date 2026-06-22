@@ -50,12 +50,12 @@ func New() *cobra.Command {
 配置：通过 YAML 文件管理数据源连接串（见 --config）。
 面向 AI：运行 ` + "`dbm-cli manifest`" + ` 获取自描述清单。
 `,
-		SilenceUsage:   true,
-		SilenceErrors:  true,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	root.PersistentFlags().StringVarP(&flagConfig, "config", "c", "",
-		"配置文件路径（默认按 ./dbm-cli.yaml → ~/.config/dbm-cli/config.yaml → ~/.dbm-cli.yaml 查找）")
+		"配置文件路径（默认按 ./.dbm-cli.yaml → ./.dbm-cli.yml → ./dbm-cli.yaml → ./dbm-cli.yml → ~/.dbm-cli.yaml → ~/.dbm-cli.yml → $XDG_CONFIG_HOME/dbm-cli/config.yaml → ~/.config/dbm-cli/config.yaml 查找）")
 	root.PersistentFlags().StringVarP(&flagDatasource, "datasource", "d", "",
 		"使用的数据源名（未指定则用配置里的 default）")
 	root.PersistentFlags().StringVarP(&flagOutput, "output", "o", "table",
@@ -76,6 +76,7 @@ func New() *cobra.Command {
 		newViewsCmd(),
 		newTableCmd(),
 		newQueryCmd(),
+		newMcpCmd(),
 	)
 
 	// 把 cobra 自动生成的 completion 命令描述改为中文。
