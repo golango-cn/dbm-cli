@@ -62,29 +62,44 @@ Notes for the agent:
 
 ---
 
-## Step 2: Configure datasources (`~/.dbm-cli.yaml`)
+## Step 2: Configure datasources (`.dbm-cli.yaml`)
 
 All database connections live in **one YAML file**, shared by both the CLI and the MCP server. The MCP server reads **the same file** — never put host/user/password in the MCP client's JSON config.
 
-**File lookup order** (first match wins): `--config <path>` → `./.dbm-cli.yaml` → `./dbm-cli.yaml` → `~/.dbm-cli.yaml` → `$XDG_CONFIG_HOME/dbm-cli/config.yaml` → `~/.config/dbm-cli/config.yaml`.
+### Where is the config file? (exactly TWO places — do not look anywhere else)
 
-**Recommended location: `~/.dbm-cli.yaml`** (home dir, works from any cwd).
+dbm-cli looks for its config in **only these two locations** (first match wins):
 
-### Datasource naming convention
+1. **`~/.dbm-cli.yaml`** — your home directory. **Recommended.** Works from any cwd, so the CLI and the MCP server always find it.
+2. **`./.dbm-cli.yaml`** — the current working directory. Only use this for a project-local config that intentionally overrides the home one.
 
-**Always name datasources** `<ip>_<datasourcetype>_<database>_<env>`:
+**That's it.** Do **NOT** go hunting in XDG dirs, `~/.config/dbm-cli/`, `/etc/`, `.yml` variants, or anywhere else — dbm-cli does not need to read a config from there for normal use, and searching those locations just wastes turns. If neither of the two files exists, **create `~/.dbm-cli.yaml`** (the recommended default). You can always force a custom path with `-c/--config <path>`, but there is no reason to for normal use.
+
+> As an agent, the correct sequence is: try reading `~/.dbm-cli.yaml`; if missing, try `./.dbm-cli.yaml`; if both missing, **create `~/.dbm-cli.yaml`** — do not enumerate or `find` other paths.
+
+### Datasource naming convention (MANDATORY — exactly 4 segments)
+
+Every datasource name **MUST** be exactly **4 segments** separated by underscores — no more, no less:
 
 ```
-<ip>_<type>_<database>_<env>
+<ip>_<datasourcetype>_<database>_<env>
+```
+
+The 4-segment shape is non-negotiable: it is what lets both AI and humans read host/type/db/env at a glance, keep names collision-free across many databases, and avoid accidentally writing to prod.
+
+```
 10.10.239.152_mysql_bdmp_dev
 10.10.0.7_postgresql_appdb_prod
 10.10.0.10_sqlserver_appdb_prod
 ```
 
-- `<ip>`: the host IP (distinguishes multiple DBs on different hosts)
-- `<type>`: `mysql` / `postgresql` / `oracle` / `sqlserver` / `clickhouse` / `impala` (or `mariadb`)
-- `<database>`: the database/schema name
-- `<env>`: `dev` / `test` / `prod` — **encodes risk level in the name** so neither AI nor human accidentally runs writes against prod.
+Segment by segment:
+- `<ip>` — the host IP (dots allowed; distinguishes multiple DBs on different hosts).
+- `<datasourcetype>` — exactly one of: `mysql` / `mariadb` / `postgresql` / `oracle` / `sqlserver` / `clickhouse` / `impala`. **Must match the block's `type:` field.**
+- `<database>` — the database / schema name this source points at.
+- `<env>` — `dev` / `test` / `uat` / `prod`. **Encodes risk level in the name** so neither AI nor human accidentally runs writes against prod; a `_prod` suffix means be careful.
+
+**Validation rule (enforce it when writing config):** split the name on `_`; there must be exactly 4 parts. If the user hands you a name that isn't 4 segments (e.g. `mydb`, `mysql_prod`, or a 5-segment name), **do not silently accept it** — reformat it to the 4-segment form before writing it into the YAML.
 
 ### Full example for every supported engine
 
@@ -301,11 +316,22 @@ All errors print to stderr as `[dbm-cli] error: <message>`, often with a `[dbm-c
 
 ## Agent guardrails
 
+### Hard prohibitions (never override — even if a task seems to require it)
+
+- **Never modify the config file (`~/.dbm-cli.yaml` / `./.dbm-cli.yaml`) under any circumstances.** This includes: never flipping `allow_write: false` → `true`, never adding/editing datasource blocks, never tweaking `timeout`/`host`/`port`/`password` to "make it work". The config is user-owned; if a change is needed, tell the user what to change and let them do it.
+  - A read-only rejection (exit 2 / "write disabled") is intentional and final — surface it to the user, do not work around it by editing the YAML.
+- **If an MCP server is configured (i.e. the dbm-cli MCP tools are available), prefer it over the shell CLI.** Call the MCP tools directly; do not shell out to `dbm-cli ...` when the equivalent MCP tool exists. Only fall back to the CLI when there is genuinely no MCP server in this session.
+- **Only dbm-cli (MCP tools or `dbm-cli` CLI) may touch datasources — no exceptions.** If a datasource is unreachable, returns no data, or any dbm-cli call fails, **stop and report the error to the user**. Do **not** route around dbm-cli with `curl`, `mysql`/`psql`/`sqlcmd` clients, raw driver scripts, HTTP endpoints (e.g. ClickHouse 8123), or any other tool. Report the dbm-cli error verbatim and let the user decide how to proceed.
+
+### General rules
+
+- **The config lives in `~/.dbm-cli.yaml` or `./.dbm-cli.yaml` — and nowhere else.** Do not search XDG, `~/.config/`, `/etc/`, `.yml` variants, or other directories. If neither file exists, **create `~/.dbm-cli.yaml`**.
+- **Datasource names are always exactly 4 segments** — `<ip>_<datasourcetype>_<database>_<env>`. Reject/ reformat any name that isn't; `<datasourcetype>` must match the block's `type:`.
 - **Discover before connecting.** Run `datasources`/`list_datasources` first; never guess a datasource name.
-- **Respect the naming convention.** `<ip>_<type>_<database>_<env>` — the `_prod` suffix means be careful; prefer a `_dev`/`_test` source for writes.
+- The `_prod` segment means be careful; prefer a `_dev`/`_test` source for writes.
 - **Prefer `--like`/`--limit` and tool-native filters** over pulling entire catalogs.
 - **Prefer parameterized `?` + `--param`** over string-concatenated values.
-- **Respect `allow_write`.** A read-only rejection (exit 2) is intentional; surface it, don't retry.
+- **Respect `allow_write`** — see the hard prohibitions above: never edit the config to flip it; surface rejections to the user.
 - **Use `-o json`** when parsing results; `table` only for human display.
 - **Read the hint line** in any error before retrying.
 - When configuring an MCP client, **use the absolute binary path** and remember the client process must inherit any `${ENV_VAR}` the YAML references.
