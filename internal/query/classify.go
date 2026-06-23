@@ -14,7 +14,7 @@ type Kind int
 
 const (
 	KindUnknown Kind = iota
-	KindSelect            // SELECT / WITH(CTE)
+	KindSelect            // SELECT / WITH(CTE) / SHOW / DESCRIBE / EXPLAIN
 	KindDML               // INSERT / UPDATE / DELETE / MERGE
 	KindDDL               // CREATE / ALTER / DROP / TRUNCATE / RENAME
 	KindTransaction       // COMMIT / ROLLBACK / SAVEPOINT / SET TRANSACTION
@@ -47,6 +47,10 @@ func Classify(sql string) Kind {
 	kw := firstKeyword(sql)
 	switch kw {
 	case "SELECT", "WITH":
+		return KindSelect
+	case "SHOW", "DESCRIBE", "DESC", "EXPLAIN":
+		// SHOW/DESCRIBE/EXPLAIN 都是只读的元数据/计划查询，返回结果集而非改数据，
+		// 归为 KindSelect 让它们走 Query 路径并展示结果（如 SHOW CREATE TABLE）。
 		return KindSelect
 	case "INSERT", "UPDATE", "DELETE", "MERGE":
 		return KindDML

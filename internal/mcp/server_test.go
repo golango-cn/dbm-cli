@@ -290,6 +290,33 @@ func TestQueryRejectsWriteSQL(t *testing.T) {
 	}
 }
 
+// TestQueryAcceptsShowCreateTable 是只读元数据关键字（SHOW/DESCRIBE/EXPLAIN）
+// 补全后对 MCP query 路径的回归保护：SHOW CREATE TABLE 必须被当作只读、
+// 走 conn.Query 并返回结果集，而不是被拒绝或走 Exec 丢弃结果。
+func TestQueryAcceptsShowCreateTable(t *testing.T) {
+	s := newTestSession(t)
+	if _, _, err := s.Conn(context.Background(), "rw"); err != nil {
+		t.Fatalf("connect rw: %v", err)
+	}
+	fc := getFakeConn(t, s, "rw")
+
+	r, _ := call(context.Background(), s, "query", map[string]any{
+		"datasource": "rw",
+		"sql":        "SHOW CREATE TABLE ods.ODS_EDS_LOT_HIST_MOD_HI",
+	})
+	if r.IsError {
+		t.Fatalf("SHOW CREATE TABLE must be accepted as read-only, got error: %v", r.Content)
+	}
+	// 必须真的走了 Query（而非 Exec 丢弃结果）。
+	if fc.lastSQL != "SHOW CREATE TABLE ods.ODS_EDS_LOT_HIST_MOD_HI" {
+		t.Fatalf("expected SQL dispatched to Query, got %q", fc.lastSQL)
+	}
+	m := resultText(t, r)
+	if _, ok := m["rows"]; !ok {
+		t.Fatalf("expected rows in result, got %v", m)
+	}
+}
+
 func TestExecuteReadOnlyRejected(t *testing.T) {
 	s := newTestSession(t)
 	r, _ := call(context.Background(), s, "execute", map[string]any{
