@@ -112,8 +112,8 @@ func newTestSession(t *testing.T) *Session {
 	cfg := &config.File{
 		Default: "ro",
 		Datasources: map[string]*driver.DatasourceConfig{
-			"ro": {Type: "fake", Host: "h", Port: 1, AllowWrite: false},
-			"rw": {Type: "fake", Host: "h", Port: 1, AllowWrite: true},
+			"ro": {Type: "fake", Description: "read-only replica", Host: "h", Port: 1, AllowWrite: false},
+			"rw": {Type: "fake", Description: "primary writable", Host: "h", Port: 1, AllowWrite: true},
 		},
 	}
 	return NewSession(cfg, WithQueryLimit(2))
@@ -172,6 +172,10 @@ func TestListDatasources(t *testing.T) {
 	// 验证按 name 排序（ro < rw）
 	if arr[0].(map[string]any)["name"] != "ro" || arr[1].(map[string]any)["name"] != "rw" {
 		t.Fatalf("should be sorted by name: %v", arr)
+	}
+	// 验证 description 字段被透传（AI 据此区分同类型数据源）
+	if arr[0].(map[string]any)["description"] != "read-only replica" {
+		t.Fatalf("expected description on 'ro', got %v", arr[0])
 	}
 }
 

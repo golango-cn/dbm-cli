@@ -244,15 +244,15 @@ Each tool takes an optional `datasource` argument (falls back to the configured 
 Same capabilities, as shell commands. Use `-o json` whenever you will parse output yourself.
 
 ```bash
-dbm-cli manifest                                      # self-describing JSON (no DB needed)
-dbm-cli datasources                                   # list configured sources
-dbm-cli version   -d <ds>                             # connectivity + engine/version
-dbm-cli schemas   -d <ds>                             # list schemas
-dbm-cli tables    -d <ds> --schema <S> [--like PAT]   # list tables
-dbm-cli columns   -d <ds> --table <T> [--schema <S>]  # table structure (read before writing SQL!)
-dbm-cli indexes   -d <ds> --table <T>                 # indexes / primary key
-dbm-cli views     -d <ds> --schema <S>                # list views
-dbm-cli table     -d <ds> --name <T> --limit 10       # paginated sample rows
+dbm-cli manifest                              # self-describing JSON (no DB needed)
+dbm-cli datasources                           # list configured sources
+dbm-cli version   -d <ds>                     # connectivity + engine/version
+dbm-cli schemas   -d <ds> [-l PAT]            # list schemas (-l = --like)
+dbm-cli tables    -d <ds> [-s <S>] [-l PAT]   # list tables (-s = --schema)
+dbm-cli columns   -d <ds> -t <T> [-s <S>]     # table structure (read before writing SQL!) (-t = --table)
+dbm-cli indexes   -d <ds> -t <T>              # indexes / primary key
+dbm-cli views     -d <ds> [-s <S>]            # list views
+dbm-cli table     -d <ds> -t <T> -n 10        # paginated sample rows (-t = --name, -n = --limit)
 dbm-cli query     -d <ds> "SELECT * FROM t WHERE id=?" --param 100 --param active
 ```
 

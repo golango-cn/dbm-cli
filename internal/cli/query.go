@@ -117,7 +117,7 @@ SQL 来源（优先级从高到低）：
 	cmd.Flags().BoolVar(&yes, "yes", false, "跳过危险语句的交互式二次确认（AI/脚本场景使用）")
 	cmd.Flags().StringVarP(&file, "file", "f", "", "从文件读取 SQL")
 	cmd.Flags().StringArrayVar(&param, "param", nil, "绑定到 ? 占位符的参数值（按顺序，可多次指定）")
-	cmd.Flags().IntVar(&limit, "limit", defaultQueryLimit, "只读查询返回的最大行数（<=0 表示不限制）")
+	cmd.Flags().IntVarP(&limit, "limit", "n", defaultQueryLimit, "只读查询返回的最大行数（<=0 表示不限制）")
 	return cmd
 }
 

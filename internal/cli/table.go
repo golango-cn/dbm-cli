@@ -21,7 +21,7 @@ func newTableCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
-				return errFlagRequired("--name")
+				return errFlagRequired("--name/-t")
 			}
 			ctx := context.Background()
 			conn, _, err := newConnWithPing(ctx)
@@ -47,11 +47,11 @@ func newTableCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "表名（必填）")
-	cmd.Flags().StringVar(&schema, "schema", "", "schema 名（默认当前用户）")
-	cmd.Flags().Int64Var(&limit, "limit", 100, "返回行数")
-	cmd.Flags().Int64Var(&offset, "offset", 0, "跳过行数")
-	cmd.Flags().StringVar(&order, "order", "", "排序列")
+	cmd.Flags().StringVarP(&name, "name", "t", "", "表名（必填）")
+	cmd.Flags().StringVarP(&schema, "schema", "s", "", "schema 名（默认当前用户）")
+	cmd.Flags().Int64VarP(&limit, "limit", "n", 100, "返回行数")
+	cmd.Flags().Int64VarP(&offset, "offset", "", 0, "跳过行数")
+	cmd.Flags().StringVarP(&order, "order", "", "", "排序列")
 	return cmd
 }
 

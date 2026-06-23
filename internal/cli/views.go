@@ -33,6 +33,6 @@ func newViewsCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&schema, "schema", "", "schema 名（默认当前用户）")
+	cmd.Flags().StringVarP(&schema, "schema", "s", "", "schema 名（默认当前用户）")
 	return cmd
 }

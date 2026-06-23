@@ -36,6 +36,6 @@ func newSchemasCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&like, "like", "", "名称模糊匹配（SQL LIKE 语法，% 与 _）")
+	cmd.Flags().StringVarP(&like, "like", "l", "", "名称模糊匹配（SQL LIKE 语法，% 与 _）")
 	return cmd
 }

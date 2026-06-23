@@ -38,8 +38,8 @@ func newTablesCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&schema, "schema", "", "schema 名（默认当前用户）")
-	cmd.Flags().StringVar(&like, "like", "", "表名模糊匹配（SQL LIKE 语法）")
+	cmd.Flags().StringVarP(&schema, "schema", "s", "", "schema 名（默认当前用户）")
+	cmd.Flags().StringVarP(&like, "like", "l", "", "表名模糊匹配（SQL LIKE 语法）")
 	return cmd
 }
 
@@ -51,7 +51,7 @@ func newColumnsCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if table == "" {
-				return errFlagRequired("--table")
+				return errFlagRequired("--table/-t")
 			}
 			ctx := context.Background()
 			conn, _, err := newConnWithPing(ctx)
@@ -77,8 +77,8 @@ func newColumnsCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&schema, "schema", "", "schema 名（默认当前用户）")
-	cmd.Flags().StringVar(&table, "table", "", "表名（必填）")
+	cmd.Flags().StringVarP(&schema, "schema", "s", "", "schema 名（默认当前用户）")
+	cmd.Flags().StringVarP(&table, "table", "t", "", "表名（必填）")
 	return cmd
 }
 
@@ -90,7 +90,7 @@ func newIndexesCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if table == "" {
-				return errFlagRequired("--table")
+				return errFlagRequired("--table/-t")
 			}
 			ctx := context.Background()
 			conn, _, err := newConnWithPing(ctx)
@@ -118,8 +118,8 @@ func newIndexesCmd() *cobra.Command {
 			return writeResult(cmd.OutOrStdout(), res)
 		},
 	}
-	cmd.Flags().StringVar(&schema, "schema", "", "schema 名（默认当前用户）")
-	cmd.Flags().StringVar(&table, "table", "", "表名（必填）")
+	cmd.Flags().StringVarP(&schema, "schema", "s", "", "schema 名（默认当前用户）")
+	cmd.Flags().StringVarP(&table, "table", "t", "", "表名（必填）")
 	return cmd
 }
 
