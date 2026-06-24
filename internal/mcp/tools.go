@@ -599,16 +599,43 @@ func truncateSQL(s string, n int) string {
 }
 
 // resultToJSON 把 driver.Result 转成「columns + rows」的 JSON 文本。
-// 行内值原样保留（time/[]byte 由 json.Marshal 处理），与 CLI -o json 一致。
+//
+// 必须对每个 cell 做 normalizeJSONCell 归一化：database/sql 把变长字符串列
+// （ClickHouse/Impala/MySQL 的 VARCHAR/TEXT 等）返回为 []byte，而 Go 的
+// encoding/json 会把 []byte 当作 base64 编码的字节流输出——这会让 AI 看到
+// `impala` 变成 `aW1wYWxh`。这里把 []byte 还原为字符串，与 CLI -o json 的
+// normalizeJSONValue 行为保持一致。
 func resultToJSON(res *driver.Result) (*mcp.CallToolResult, error) {
+	rows := make([][]any, len(res.Rows))
+	for i, row := range res.Rows {
+		cells := make([]any, len(row))
+		for j, v := range row {
+			cells[j] = normalizeJSONCell(v)
+		}
+		rows[i] = cells
+	}
 	out := map[string]any{
 		"columns": res.Columns,
-		"rows":    res.Rows,
+		"rows":    rows,
 	}
 	if len(res.Rows) == 0 {
 		out["rows"] = []any{} // 避免 nil 渲染成 null，让 AI 明确是空集
 	}
 	return jsonResult(out)
+}
+
+// normalizeJSONCell 与 cli/output 的 normalizeJSONValue 同语义：
+// 把 []byte（变长字符串列）还原为 string，避免 json.Marshal 做 base64 编码。
+// 其它类型原样返回（time.Time 等由 json.Marshal 自行处理）。
+func normalizeJSONCell(v any) any {
+	if v == nil {
+		return nil
+	}
+	switch x := v.(type) {
+	case []byte:
+		return string(x)
+	}
+	return v
 }
 
 // jsonResult 把任意值序列化为缩进 JSON 文本，作为 MCP tool 结果返回。

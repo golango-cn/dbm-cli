@@ -28,12 +28,13 @@ func (f *fakeDriver) Open(cfg *driver.DatasourceConfig) (driver.Conn, error) {
 
 // fakeConn 记录最后一次调用的 SQL/args，供断言。
 type fakeConn struct {
-	allowWrite bool
-	typeStr    string
-	lastSQL    string
-	lastArgs   []any
-	pingFail   bool
-	queryFail  error
+	allowWrite  bool
+	typeStr     string
+	lastSQL     string
+	lastArgs    []any
+	pingFail    bool
+	queryFail   error
+	queryResult *driver.Result // 非空时 Query 返回它（用于构造 []byte 等 cell）
 }
 
 func (c *fakeConn) Ping(ctx context.Context) error {
@@ -51,6 +52,9 @@ func (c *fakeConn) Query(ctx context.Context, sql string, args ...any) (*driver.
 	c.lastSQL, c.lastArgs = sql, args
 	if c.queryFail != nil {
 		return nil, c.queryFail
+	}
+	if c.queryResult != nil {
+		return c.queryResult, nil
 	}
 	return &driver.Result{
 		Columns: []string{"id", "name"},
@@ -385,6 +389,52 @@ func TestExecuteNonDestructiveWrite(t *testing.T) {
 	m := resultText(t, r)
 	if m["rows_affected"] != float64(1) {
 		t.Fatalf("expected rows_affected=1, got %v", m["rows_affected"])
+	}
+}
+
+// TestQueryByteSliceNotBase64 是对 resultToJSON 归一化的回归保护：
+// database/sql 把变长字符串列返回为 []byte，而 Go 的 encoding/json 默认会把
+// []byte 当作 base64 字节流输出（`impala` → `aW1wYWxh`）。MCP 层必须把
+// []byte 还原为字符串，否则 AI 看到的是乱码。
+func TestQueryByteSliceNotBase64(t *testing.T) {
+	s := newTestSession(t)
+	if _, _, err := s.Conn(context.Background(), "rw"); err != nil {
+		t.Fatalf("connect rw: %v", err)
+	}
+	fc := getFakeConn(t, s, "rw")
+	// 模拟真实驱动：VARCHAR/TEXT 列以 []byte 返回。
+	fc.queryResult = &driver.Result{
+		Columns: []string{"id", "name", "cfg"},
+		Rows: [][]any{
+			{int64(1), []byte("impala"), []byte(`{"speed":1}`)},
+			{int64(2), []byte("clickhouse"), nil},
+		},
+	}
+
+	r, _ := call(context.Background(), s, "query", map[string]any{
+		"datasource": "rw",
+		"sql":        "SELECT * FROM t",
+	})
+	if r.IsError {
+		t.Fatalf("unexpected error: %v", r.Content)
+	}
+	m := resultText(t, r)
+	rows, _ := m["rows"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	row0 := rows[0].([]any)
+	// 关键断言：[]byte 必须以原始字符串返回，而非 base64。
+	if row0[1] != "impala" {
+		t.Fatalf("[]byte cell must be returned as plain string, got %v (type %T)", row0[1], row0[1])
+	}
+	if row0[2] != `{"speed":1}` {
+		t.Fatalf("[]byte JSON cell must be returned as plain string, got %v", row0[2])
+	}
+	// nil 仍为 nil（JSON null），不能被改写。
+	row1 := rows[1].([]any)
+	if row1[2] != nil {
+		t.Fatalf("nil cell must stay nil, got %v", row1[2])
 	}
 }
 
