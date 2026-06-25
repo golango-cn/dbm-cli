@@ -51,14 +51,14 @@ make dist           # 输出到 ./dist/
 
 ## 🧪 在线演示（live demo）
 
-仓库内置一个演示目录 [`demo/`](demo)，通过 Makefile 演示全部命令。它与具体数据库无关——指向你配置的任意数据源即可：
+仓库内置一个演示目录 [`examples/`](examples)，通过 Makefile 演示全部命令。它与具体数据库无关——指向你配置的任意数据源即可：
 
 ```bash
-cd demo
-# 1. 编译二进制到 ./demo
+cd examples
+# 1. 编译二进制到 ./examples
 go build -o dbm-cli ../cmd/dbm-cli
-# 2. 创建配置（复制并编辑 ../examples/config.yaml.example）
-cp ../examples/config.yaml.example dbm-cli.yaml   # 然后修改 host/user/password
+# 2. 创建配置（复制并编辑同目录的 config.yaml.example）
+cp config.yaml.example dbm-cli.yaml   # 然后修改 host/user/password
 # 3. 在默认数据源上初始化演示表
 make init
 # 4. 运行演示
@@ -68,7 +68,7 @@ make formats        # 全部输出格式（table/json/csv/yaml/vertical）
 make demo DS=other  # 换一个数据源演示
 ```
 
-> demo 的 `dbm-cli` 二进制和 `dbm-cli.yaml`（含凭据）已被 .gitignore 忽略，不入库；仅 `Makefile` 和 `init-demo-data.sh` 入库。
+> demo 的 `dbm-cli` 二进制和 `dbm-cli.yaml`（含凭据）已被 .gitignore 忽略，不入库；仅 `Makefile`、`init-demo-data.sh` 及各库的 `demo-*.sh` 脚本入库。
 
 ## ⚙️ 配置
 

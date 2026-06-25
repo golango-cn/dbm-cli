@@ -2,7 +2,7 @@
 #
 # 本目录是 dbm-cli 的快速体验环境。你需要：
 #   1. 把编译好的二进制放到本目录，名为 dbm-cli
-#   2. 创建 dbm-cli.yaml 配置文件（参考 ../examples/config.yaml.example）
+#   2. 创建 dbm-cli.yaml 配置文件（参考同目录的 config.yaml.example）
 #   3. make init   初始化统一演示表 dbm_demo
 #   4. make help   查看可用目标
 #

@@ -2,7 +2,7 @@
 # demo-sqlserver.sh —— Microsoft SQL Server 命令清单（每行可单独拷贝执行）
 # 数据源 mssql2022：SQL Server 2022，库 appdb，在 dbm-cli.yaml 中定义。
 # 另有 mssql2017（SQL Server 2017，端口 14317）可替换。
-# 约定：在 demo/ 目录下执行（配置文件 dbm-cli.yaml 与二进制 dbm-cli 均在本目录）。
+# 约定：在 examples/ 目录下执行（配置文件 dbm-cli.yaml 与二进制 dbm-cli 均在本目录）。
 echo "==================== SQL Server 演示（数据源: mssql2022）===================="
 
 # 查数据库版本（@@VERSION，含产品年份与引擎版本号）

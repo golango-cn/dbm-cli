@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # demo-oracle.sh —— Oracle 命令清单（每行可单独拷贝执行）
 # 数据源 oracle18c：Oracle 18c XE，service XEPDB1，用户 APPUSER，在 dbm-cli.yaml 中定义。
-# 约定：在 demo/ 目录下执行（配置文件 dbm-cli.yaml 与二进制 dbm-cli 均在本目录）。
+# 约定：在 examples/ 目录下执行（配置文件 dbm-cli.yaml 与二进制 dbm-cli 均在本目录）。
 # 注意：Oracle 元数据按 schema 隔离，表名通常为大写，故用大写 DBM_DEMO / APPUSER。
 # 下面每一条都是独立的命令，挑任意一条拷贝即可直接运行。
 echo "==================== Oracle 演示（数据源: oracle18c）===================="

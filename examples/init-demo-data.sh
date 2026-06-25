@@ -14,7 +14,7 @@ CONFIG="$DIR/dbm-cli.yaml"
 DS="${1:-}"
 
 [ -x "$CLI" ] || { echo "缺少 $CLI 二进制；请先 go build -o $CLI ../cmd/dbm-cli"; exit 1; }
-[ -f "$CONFIG" ] || { echo "缺少 $CONFIG；请参考 ../examples/config.yaml.example 创建"; exit 1; }
+[ -f "$CONFIG" ] || { echo "缺少 $CONFIG；请参考同目录的 config.yaml.example 创建"; exit 1; }
 [ -n "$DS" ] || DS="$(sed -n 's/^default:[[:space:]]*//p' "$CONFIG")"
 [ -n "$DS" ] || { echo "未指定数据源：用法 $0 <数据源名>，或在 dbm-cli.yaml 设 default"; exit 1; }
 

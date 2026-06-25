@@ -51,14 +51,14 @@ make dist           # outputs to ./dist/
 
 ## 🧪 Try it (live demo)
 
-The repo ships a demo harness in [`demo/`](demo) that exercises every command via a Makefile. It is database-agnostic — point it at any datasource you have configured:
+The repo ships a demo harness in [`examples/`](examples) that exercises every command via a Makefile. It is database-agnostic — point it at any datasource you have configured:
 
 ```bash
-cd demo
-# 1. build the binary into ./demo
+cd examples
+# 1. build the binary into ./examples
 go build -o dbm-cli ../cmd/dbm-cli
-# 2. create a config (copy & edit from ../examples/config.yaml.example)
-cp ../examples/config.yaml.example dbm-cli.yaml   # then edit host/user/password
+# 2. create a config (copy & edit from config.yaml.example in the same dir)
+cp config.yaml.example dbm-cli.yaml   # then edit host/user/password
 # 3. initialize the demo table on your default datasource
 make init
 # 4. run the demos
@@ -68,7 +68,7 @@ make formats        # all output formats (table/json/csv/yaml/vertical)
 make demo DS=other  # run against a different datasource
 ```
 
-> The demo's `dbm-cli` binary and `dbm-cli.yaml` (which holds credentials) are gitignored. Only `Makefile` and `init-demo-data.sh` are tracked.
+> The demo's `dbm-cli` binary and `dbm-cli.yaml` (which holds credentials) are gitignored. Only the `Makefile`, `init-demo-data.sh`, and the per-DB `demo-*.sh` scripts are tracked.
 
 ## ⚙️ Configuration
 

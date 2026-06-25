@@ -2,7 +2,7 @@
 /bin/
 /dist/
 /dbm-cli
-demo/dbm-cli
+examples/dbm-cli
 *.exe
 
 # Local config (may contain secrets)
@@ -12,9 +12,10 @@ config.yaml
 config.yml
 !examples/config.yaml.example
 
-# demo/ is a local self-contained runtime (binary + local config).
-# Only the Makefile is tracked; the binary and dbm-cli.yaml are gitignored
-# above (dbm-cli binary and dbm-cli.yaml match anywhere).
+# examples/ is a local self-contained runtime (binary + local config).
+# Only the Makefile, init-demo-data.sh, and the per-DB demo-*.sh scripts are
+# tracked; the binary and dbm-cli.yaml are gitignored above (dbm-cli binary and
+# dbm-cli.yaml match anywhere).
 
 # Test / coverage
 *.out
