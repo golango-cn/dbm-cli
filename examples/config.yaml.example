@@ -110,6 +110,24 @@ datasources:
     allow_write: false
     timeout: 15s
 
+  # Apache Impala 数据源示例 —— Kerberos 认证
+  # 启用后，dbm-cli 用 keytab 向 KDC 换取 TGT（纯 Go，无需系统 kinit），
+  # 写入临时票据缓存，驱动经 GSSAPI 完成握手。
+  impala-kerb:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # Kerberized Impala 的 HS2 端口
+    database: default
+    allow_write: false
+    timeout: 20s              # Kerberos 握手比无认证慢，超时建议放宽
+    kerberos:
+      realm: EXAMPLE.COM               # KDC realm
+      service: impala                  # 服务主体名（principal 第一段），默认 impala
+      krb_host: impalad-node1           # principal 里的 hostname（impala/krb_host@REALM）
+      keytab: /etc/security/keytabs/cdp.keytab      # keytab 文件路径
+      principal: cdptest@EXAMPLE.COM   # 客户端主体（含 realm）
+      krb5_conf: /etc/krb5.conf        # krb5.conf（含 KDC 地址）
+
   # Microsoft SQL Server 数据源示例（2017+）
   mssql-prod:
     type: sqlserver
