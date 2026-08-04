@@ -102,6 +102,23 @@ func (c *fakeConn) QueryTable(ctx context.Context, schema, table string, limit, 
 	return &driver.Result{Columns: []string{"id"}, Rows: [][]any{{int64(1)}}}, nil
 }
 
+// StoredProcCaller 实现（让 call 工具可测）。
+// 记录调用入参供断言，返回一个可预测的 ProcResult（OUT 标量 + REF CURSOR + 打印）。
+// lastProc / lastProcParams 由 CallProc 写入，测试读取断言。
+var (
+	lastProc      string
+	lastProcParams []driver.ProcParam
+)
+
+func (c *fakeConn) CallProc(ctx context.Context, proc string, params []driver.ProcParam) (*driver.ProcResult, error) {
+	lastProc, lastProcParams = proc, params
+	return &driver.ProcResult{
+		OutParams: map[string]any{"sum": float64(8)},
+		ResultSet: &driver.Result{Columns: []string{"id", "name"}, Rows: [][]any{{int64(1), "alice"}}},
+		Output:    "计算完成: 3 + 5 = 8",
+	}, nil
+}
+
 // ---- 测试辅助 ----
 
 // registerFakeOnce 确保 fakeDriver 只注册一次（重复 Register 会 panic）。
@@ -482,4 +499,74 @@ func getFakeConn(t *testing.T, s *Session, name string) *fakeConn {
 		t.Fatalf("underlying conn is not *fakeConn")
 	}
 	return fc
+}
+
+// ---- call 工具（存储过程）测试 ----
+
+func TestCallSuccess(t *testing.T) {
+	s := newTestSession(t)
+	r, _ := call(context.Background(), s, "call", map[string]any{
+		"datasource": "rw",
+		"procedure":  "add_numbers",
+		"in":         []any{"3", "5"},
+		"out":        []any{"sum:number"},
+	})
+	if r.IsError {
+		t.Fatalf("call should succeed, got: %v", r.Content)
+	}
+	m := resultText(t, r)
+	// procedure 名回显
+	if m["procedure"] != "add_numbers" {
+		t.Fatalf("expected procedure=add_numbers, got %v", m["procedure"])
+	}
+	// OUT 标量回收
+	out, _ := m["out"].(map[string]any)
+	if out["sum"] != float64(8) {
+		t.Fatalf("expected out.sum=8, got %v", out["sum"])
+	}
+	// REF CURSOR 结果集
+	rs, _ := m["result_set"].(map[string]any)
+	rows, _ := rs["rows"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row in result_set, got %d", len(rows))
+	}
+	// DBMS_OUTPUT 文本（默认捕获）
+	if m["output"] != "计算完成: 3 + 5 = 8" {
+		t.Fatalf("expected output text, got %v", m["output"])
+	}
+	// 底层 fakeConn 收到的参数（先 IN 后 OUT）
+	if lastProc != "add_numbers" {
+		t.Fatalf("expected lastProc=add_numbers, got %q", lastProc)
+	}
+	if len(lastProcParams) != 3 || lastProcParams[2].Name != "sum" {
+		t.Fatalf("expected 3 params with last name=sum, got %+v", lastProcParams)
+	}
+}
+
+func TestCallMissingProcedure(t *testing.T) {
+	s := newTestSession(t)
+	r, _ := call(context.Background(), s, "call", map[string]any{
+		"in": []any{"1"},
+	})
+	if !r.IsError {
+		t.Fatalf("missing procedure should be an error")
+	}
+}
+
+func TestCallNoPrintOmitsOutput(t *testing.T) {
+	s := newTestSession(t)
+	r, _ := call(context.Background(), s, "call", map[string]any{
+		"datasource": "rw",
+		"procedure":  "add_numbers",
+		"in":         []any{"1", "2"},
+		"out":        []any{"sum:number"},
+		"no_print":   true,
+	})
+	if r.IsError {
+		t.Fatalf("unexpected error: %v", r.Content)
+	}
+	m := resultText(t, r)
+	if _, exists := m["output"]; exists {
+		t.Fatalf("no_print=true must omit output field, got %v", m["output"])
+	}
 }

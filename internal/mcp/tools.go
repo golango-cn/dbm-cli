@@ -162,6 +162,28 @@ MCP 场景无交互终端，因此比 CLI 更保守——这是自动化场景�
 			),
 			handler: s.handleExecute,
 		},
+		// ---- 存储过程（仅支持实现了 StoredProcCaller 的驱动，如 Oracle）----
+		{
+			definition: mcp.NewTool("call",
+				mcp.WithDescription(`调用存储过程（目前仅 Oracle 驱动支持），自动回收 OUT 标量参数与 REF CURSOR 结果集，
+并捕获过程内 DBMS_OUTPUT.PUT_LINE 的打印输出（返回在 output 字段）。
+
+参数绑定顺序：先所有 in（占位符 :1..:N），再所有 out（占位符 :N+1..），与过程签名顺序一致。
+out 数组每项格式 "name:type"，type ∈ number（数值）、string（字符串）、cursor（结果集/REF CURSOR）。`),
+				mcp.WithString("datasource", mcp.Description("数据源名；省略则用 default")),
+				mcp.WithString("procedure", mcp.Required(), mcp.Description("存储过程名")),
+				mcp.WithArray("in",
+					mcp.Description("IN 参数值数组（按顺序，字符串或数字）"),
+					mcp.Items(map[string]any{"type": "string"}),
+				),
+				mcp.WithArray("out",
+					mcp.Description(`OUT 参数数组，每项 "name:type"（type=number|string|cursor，按顺序）`),
+					mcp.Items(map[string]any{"type": "string"}),
+				),
+				mcp.WithBoolean("no_print", mcp.Description("true=不捕获 DBMS_OUTPUT（默认捕获）")),
+			),
+			handler: s.handleCall,
+		},
 	}
 }
 
@@ -177,6 +199,10 @@ Recommended exploration flow:
   4. list_tables       — find tables in a schema
   5. describe_table    — inspect a table's columns before writing SQL
   6. sample_table / query — read data
+
+For Oracle stored procedures:
+  - call tool invokes a procedure, returns OUT scalar params, REF CURSOR
+    result sets, and DBMS_OUTPUT (print) text. Only Oracle supports it.
 
 Safety:
   - Every datasource has an allow_write switch (read-only by default).
@@ -535,6 +561,94 @@ func (s *Session) handleExecute(ctx context.Context, req mcp.CallToolRequest) (*
 		"ok":            true,
 		"rows_affected": res.RowsAffected,
 	})
+}
+
+// ----- 存储过程 -----
+
+// handleCall 调用存储过程，回收 OUT 标量与 REF CURSOR，捕获 DBMS_OUTPUT。
+// 与 CLI 的 call 命令语义一致；仅对实现了 driver.StoredProcCaller 的驱动可用（如 Oracle）。
+func (s *Session) handleCall(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	m := req.GetArguments()
+	proc := getString(m, "procedure")
+	if proc == "" {
+		return mcp.NewToolResultError("missing required argument 'procedure'"), nil
+	}
+	inVals := getStringSlice(m, "in")
+	outSpec := getStringSlice(m, "out")
+	noPrint, _ := getBool(m, "no_print")
+
+	if len(inVals) == 0 && len(outSpec) == 0 {
+		return mcp.NewToolResultError("at least one 'in' or 'out' argument is required"), nil
+	}
+
+	conn, name, err := s.Conn(ctx, getString(m, "datasource"))
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr(fmt.Sprintf("connect datasource: %v", err), nil), nil
+	}
+
+	// WriteGuard 包裹了真实 Conn；CallProc 在底层（如 oracle.conn），需 Unwrap。
+	realConn := conn
+	if g, ok := conn.(*driver.WriteGuard); ok {
+		realConn = g.Unwrap()
+	}
+	sp, ok := realConn.(driver.StoredProcCaller)
+	if !ok {
+		return mcp.NewToolResultError(fmt.Sprintf(
+			"this datasource (type %q) does not support stored procedure calls; only Oracle is supported",
+			s.driverTypeOf(name))), nil
+	}
+
+	params, err := buildProcParams(inVals, outSpec)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	res, err := sp.CallProc(ctx, proc, params)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("call procedure", err), nil
+	}
+
+	out := map[string]any{
+		"procedure": proc,
+		"out":       res.OutParams, // 标量 OUT：name → value（可能为空 map）
+	}
+	if res.ResultSet != nil {
+		// REF CURSOR：复用 resultToJSON 的列/行结构，嵌进 result_set 字段。
+		rows := make([][]any, len(res.ResultSet.Rows))
+		for i, row := range res.ResultSet.Rows {
+			cells := make([]any, len(row))
+			for j, v := range row {
+				cells[j] = normalizeJSONCell(v)
+			}
+			rows[i] = cells
+		}
+		out["result_set"] = map[string]any{"columns": res.ResultSet.Columns, "rows": rows}
+	}
+	if !noPrint {
+		out["output"] = res.Output // DBMS_OUTPUT 文本（print）
+	}
+	return jsonResult(out)
+}
+
+// buildProcParams 把 in/out 参数组装成 driver.ProcParam 切片（先 IN 后 OUT）。
+// 与 internal/cli/call.go 的 buildProcParams 同语义；独立实现以避免 cli↔mcp 循环依赖。
+func buildProcParams(inVals, outSpec []string) ([]driver.ProcParam, error) {
+	var params []driver.ProcParam
+	for _, v := range inVals {
+		params = append(params, driver.ProcParam{Value: coerceParam(v), Direction: driver.ParamIn})
+	}
+	for _, spec := range outSpec {
+		idx := strings.Index(spec, ":")
+		if idx <= 0 || idx == len(spec)-1 {
+			return nil, fmt.Errorf("invalid out %q: expected name:type (type=number|string|cursor)", spec)
+		}
+		params = append(params, driver.ProcParam{
+			Name:      spec[:idx],
+			Direction: driver.ParamOut,
+			OutType:   spec[idx+1:],
+		})
+	}
+	return params, nil
 }
 
 // ============================================================================
