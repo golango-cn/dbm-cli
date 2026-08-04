@@ -27,9 +27,26 @@ func (d *Driver) Open(cfg *driver.DatasourceConfig) (driver.Conn, error) {
 		// 21050 是 HiveServer2 协议默认端口（不是 impala-shell 的 21000）
 		cfg.Port = 21050
 	}
-	pool, err := newPool(cfg)
+
+	// 解析可选的 kerberos 配置（来自 cfg.Raw 的 kerberos 段）。
+	// 若配置了 keytab，先换取 ticket 写入临时 ccache 并设置 KRB5CCNAME，
+	// 驱动（go-gssapi krb5 backend）会读取该票据完成 GSSAPI 握手。
+	krb := parseKerberosCfg(cfg)
+	var cleanup func() = nil
+	if krb != nil {
+		c, err := setupKerberos(krb)
+		if err != nil {
+			return nil, err
+		}
+		cleanup = c
+	}
+
+	pool, err := newPool(cfg, krb)
 	if err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
 		return nil, err
 	}
-	return &conn{pool: pool, cfg: cfg}, nil
+	return &conn{pool: pool, cfg: cfg, cleanup: cleanup}, nil
 }

@@ -9,11 +9,12 @@ import (
 	"github.com/golango-cn/dbm-cli/internal/driver"
 )
 
-// conn 实现 driver.Conn，底层是 *sql.DB（impala-go 驱动，走 HiveServer2）。
+// conn 实现 driver.Conn，底层是 *sql.DB（impala 驱动，走 HiveServer2）。
 type conn struct {
 	pool    *sql.DB
 	cfg     *driver.DatasourceConfig
 	version *driver.DBVersion
+	cleanup func() // Kerberos 模式下回收临时 ccache；非 Kerberos 为 nil
 }
 
 // buildDSN 构造 impala-go 的 DSN。
@@ -40,8 +41,13 @@ func buildDSN(cfg *driver.DatasourceConfig) string {
 // newPool 构建并配置连接池。
 // Impala 的"当前库"是连接级状态：USE 只作用于执行它的那条连接。
 // 为确保 Query 里先 USE 再查的语义在同一物理连接上成立，强制单连接池。
-func newPool(cfg *driver.DatasourceConfig) (*sql.DB, error) {
-	dsn := buildDSN(cfg)
+func newPool(cfg *driver.DatasourceConfig, krb *kerberosCfg) (*sql.DB, error) {
+	var dsn string
+	if krb != nil {
+		dsn = buildKerberosDSN(cfg, krb)
+	} else {
+		dsn = buildDSN(cfg)
+	}
 	db, err := sql.Open("impala", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("impala: open: %w", err)
@@ -148,12 +154,16 @@ func (c *conn) Ping(ctx context.Context) error {
 	return conn.Close()
 }
 
-// Close 关闭连接池。
+// Close 关闭连接池。若是 Kerberos 模式，顺带回收临时 ccache。
 func (c *conn) Close() error {
+	var err error
 	if c.pool != nil {
-		return c.pool.Close()
+		err = c.pool.Close()
 	}
-	return nil
+	if c.cleanup != nil {
+		c.cleanup()
+	}
+	return err
 }
 
 // normalizeTLS 归一化 TLS：非空即启用。
