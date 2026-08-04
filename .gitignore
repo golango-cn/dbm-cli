@@ -12,6 +12,10 @@ config.yaml
 config.yml
 !examples/config.yaml.example
 
+# demo/ 已合并到 examples/（见 refactor commit）；本地 demo/ 是工作区残留
+# （二进制 + 本地配置），整目录忽略。
+/demo/
+
 # examples/ is a local self-contained runtime (binary + local config).
 # Only the Makefile, init-demo-data.sh, and the per-DB demo-*.sh scripts are
 # tracked; the binary and dbm-cli.yaml are gitignored above (dbm-cli binary and
