@@ -18,6 +18,7 @@ Supported engines: **MySQL / MariaDB** (5.7 / 8.0), **PostgreSQL** (9.6+), **Ora
 - The user wants to **understand a database's structure** — tables, columns/types, indexes, views, schemas.
 - The user wants to **browse sample rows** of a table without writing a full query.
 - The user wants to **run SQL** (read or write) against a configured datasource.
+- The user wants to **call an Oracle stored procedure** and get back OUT params / REF CURSOR / `DBMS_OUTPUT` print output.
 - The user wants to **add a new database** to dbm-cli, or **set up dbm-cli as an MCP server** for their AI client.
 - You need to **discover what datasources are configured** before connecting.
 
@@ -118,7 +119,7 @@ That example contains **one block per engine**, all following the naming convent
 | `oracle` | `service_name` **or** `sid` (one required) | Version auto-detected 10g–21c; restricted accounts use `force_version: "11g"`. |
 | `sqlserver` | `database` (required) | Default schema is `dbo`; pure-Go driver, no ODBC. |
 | `clickhouse` | `database` (required; == schema) | **Port 9000** (native TCP), **not** 8123 (HTTP). |
-| `impala` | `database` (required; == schema) | **Port 21050** (HiveServer2), **not** 21000. user/password optional on no-auth clusters. |
+| `impala` | `database` (required; == schema) | **Port 21050** (HiveServer2), **not** 21000. user/password optional on no-auth clusters. Kerberos auth via keytab — pure Go, no system `kinit` (see [Impala Kerberos](#impala-kerberos-auth-keytab)). |
 
 **Common fields for all types**: `description` (helps AI distinguish same-type sources), `allow_write` (default **false** = read-only, writes blocked by a guard), `timeout` (default 30s), `password` (supports `${ENV_VAR}` expansion — prefer this over inline plaintext).
 
@@ -138,6 +139,29 @@ datasources:
     allow_write: false
 ```
 
+### Impala Kerberos auth (keytab)
+
+For a kerberized Impala cluster, add a `kerberos` block. dbm-cli exchanges a TGT from the keytab **in-process (pure Go)** and writes a temp ticket cache for the driver — **no system `kinit` needed**. Omit the block entirely for username/password or no-auth clusters.
+
+```yaml
+  10.0.0.9_impala_default_prod:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # HiveServer2 port of the kerberized Impala
+    database: default
+    allow_write: false
+    timeout: 20s              # the Kerberos handshake is slower than no-auth
+    kerberos:
+      realm: EXAMPLE.COM             # KDC realm
+      service: impala                # service principal's first segment (default: impala)
+      krb_host: impalad-node1        # hostname in the service principal (impala/krb_host@REALM)
+      keytab: /etc/security/keytabs/cdp.keytab
+      principal: cdptest@EXAMPLE.COM # client principal (include realm)
+      krb5_conf: /etc/krb5.conf      # krb5.conf (contains the KDC address)
+```
+
+All six `kerberos` sub-fields are required (any missing → falls back to the non-Kerberos path). The keytab file and `krb5.conf` must be readable by the process running dbm-cli.
+
 ### Verify the config
 
 After writing `~/.dbm-cli.yaml`:
@@ -151,7 +175,7 @@ dbm-cli version -d <name>  # connects + pings; confirms the source actually work
 
 ## Step 3: Register dbm-cli as an MCP server
 
-`dbm-cli mcp` runs the tool as a **Model Context Protocol** server over **stdio**. It exposes the same 11 capabilities as MCP tools (see [MCP usage](#using-the-mcp-server) below). It reads the **same `~/.dbm-cli.yaml`** — so once Step 2 is done, registration is just pointing the client at the binary.
+`dbm-cli mcp` runs the tool as a **Model Context Protocol** server over **stdio**. It exposes the same 12 capabilities as MCP tools (see [MCP usage](#using-the-mcp-server) below). It reads the **same `~/.dbm-cli.yaml`** — so once Step 2 is done, registration is just pointing the client at the binary.
 
 > The `mcp` subcommand is **additive**: it does not change any other CLI command. Users who never run it are unaffected.
 
@@ -185,7 +209,7 @@ Claude Code stores MCP servers in **`~/.agents/mcp.json`** under the `mcpServers
 }
 ```
 
-After editing, **restart the client** so it spawns the new server. Verify inside the client with its `/mcp` command — `dbm-cli` should appear with 11 tools.
+After editing, **restart the client** so it spawns the new server. Verify inside the client with its `/mcp` command — `dbm-cli` should appear with 12 tools.
 
 > Note for the agent: when configuring ZCode specifically, the file is `~/.agents/mcp.json` (standard `mcpServers` shape) — **not** `~/.zcode/v2/config.json` (that file is for model providers only, despite ZCode being OpenCode-derived).
 
@@ -215,13 +239,13 @@ Pipe a JSON-RPC handshake straight into the binary to confirm it lists tools:
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 0.3; } | dbm-cli mcp
 ```
 
-Expect an `initialize` result naming `dbm-cli`, then a `tools/list` result with 11 tools (`describe_table`, `execute`, `get_version`, `list_databases`, `list_datasources`, `list_indexes`, `list_schemas`, `list_tables`, `list_views`, `query`, `sample_table`).
+Expect an `initialize` result naming `dbm-cli`, then a `tools/list` result with 12 tools (`call`, `describe_table`, `execute`, `get_version`, `list_databases`, `list_datasources`, `list_indexes`, `list_schemas`, `list_tables`, `list_views`, `query`, `sample_table`).
 
 ---
 
 ## Using the MCP server
 
-When running as an MCP server, dbm-cli exposes **11 tools**, mirroring the CLI one-to-one:
+When running as an MCP server, dbm-cli exposes **12 tools**, mirroring the CLI one-to-one:
 
 | MCP tool | ≈ CLI command | Purpose |
 |----------|---------------|---------|
@@ -236,6 +260,7 @@ When running as an MCP server, dbm-cli exposes **11 tools**, mirroring the CLI o
 | `sample_table` | `table` | paginated table data |
 | `query` | `query` (read) | read-only SQL with `?` placeholders |
 | `execute` | `query` (write) | write SQL, gated by `allow_write` |
+| `call` | `call` | Oracle stored procedure — reclaims OUT scalars / REF CURSOR + captures `DBMS_OUTPUT` (Oracle only) |
 
 ### Recommended exploration flow (read path)
 
@@ -251,6 +276,50 @@ Each tool takes an optional `datasource` argument (falls back to the configured 
 - Since MCP has **no interactive terminal**, `execute` is *stricter* than the CLI: destructive statements (`DROP`, `TRUNCATE`, or `DELETE`/`UPDATE` without a `WHERE` clause) require an explicit `confirm_destructive: true` argument.
 - Use the **`query` tool for reads** and the **`execute` tool for writes** — never run write SQL through `query`.
 - For parameterized SQL, use `?` placeholders and pass `params` (an array); dbm-cli translates `?` to each engine's native style (`?` for MySQL/ClickHouse, `$1` for PostgreSQL, `:1` for Oracle).
+
+### Stored procedures (`call` tool — Oracle only)
+
+`call` invokes an Oracle PL/SQL procedure and reclaims its outputs. Only the Oracle driver supports it; on any other engine type the tool returns an explicit "not supported" error.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `procedure` | ✅ | procedure name |
+| `in` | — | array of IN parameter values, bound in order (`:1..:N`) |
+| `out` | — | array of OUT params, each `"name:type"` (`type` ∈ `number` / `string` / `cursor`), bound after the IN params (`:N+1..`) |
+| `datasource` | — | datasource name (falls back to `default`) |
+| `no_print` | — | `true` = don't capture `DBMS_OUTPUT` (captured by default) |
+
+At least one `in` or `out` entry is required.
+
+**Returns** a JSON object:
+
+| Field | Description |
+|-------|-------------|
+| `procedure` | echo of the procedure name |
+| `out` | object mapping each OUT param name → value (scalars only) |
+| `result_set` | present only if an `out` param is a `cursor`: `{columns, rows}` (same shape as `query` results) |
+| `output` | captured `DBMS_OUTPUT.PUT_LINE` text; **omitted** when `no_print: true` |
+
+```jsonc
+// call("add_numbers", in=[3,5], out=["sum:number"])
+{
+  "procedure": "add_numbers",
+  "out": { "sum": 8 },
+  "output": "计算完成: 3 + 5 = 8"
+}
+```
+
+```jsonc
+// call("get_users", in=[2], out=["users:cursor"])
+{
+  "procedure": "get_users",
+  "out": {},
+  "result_set": { "columns": ["id", "name"], "rows": [[1, "alice"], [2, "bob"]] },
+  "output": ""
+}
+```
 
 ---
 
@@ -269,7 +338,26 @@ dbm-cli indexes   -d <ds> -t <T>              # indexes / primary key
 dbm-cli views     -d <ds> [-s <S>]            # list views
 dbm-cli table     -d <ds> -t <T> -n 10        # paginated sample rows (-t = --name, -n = --limit)
 dbm-cli query     -d <ds> "SELECT * FROM t WHERE id=?" --param 100 --param active
+dbm-cli call      -d <ds> add_numbers --in 3 --in 5 --out sum:number   # Oracle stored procedure
 ```
+
+### Stored procedures (`call` — Oracle only)
+
+`call` invokes an Oracle PL/SQL procedure and reclaims its outputs. Only Oracle supports it; other drivers report "not supported".
+
+- **Scalar OUT params** — `--out name:type` (`type` ∈ `number` / `string`); printed to stdout as `name = value`.
+- **REF CURSOR** — `--out name:cursor`; the returned result set is printed using the global `-o` format.
+- **`DBMS_OUTPUT` print** — captured (session-pinned connection) and printed to **stderr** by default; `--no-print` disables it.
+
+Parameters bind in order: **all `--in` first** (`:1..:N`), **then all `--out`** (`:N+1..`), matching the procedure's signature.
+
+```bash
+dbm-cli call -d <oracle_ds> add_numbers --in 3 --in 5 --out sum:number
+dbm-cli call -d <oracle_ds> get_users   --in 2 --out users:cursor
+dbm-cli call -d <oracle_ds> get_user_info --in 42 --out status:string --out count:number --out rows:cursor
+```
+
+Flags: `--in` (repeatable, positional), `--out name:type` (repeatable), `--no-print`.
 
 ### Parameterized queries (preferred — SQL-injection-safe)
 
