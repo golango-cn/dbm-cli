@@ -24,8 +24,9 @@
 - 🐬 **MySQL 5.7 / 8.0.x & MariaDB** — metadata via `information_schema` (consistent across versions); supports `caching_sha2_password` (8.0 default auth) out of the box. MariaDB is protocol-compatible and usable via the `mariadb` type alias. Optional TLS (`skip-verify`) for self-signed certs.
 - ⚡ **ClickHouse 22.x+** — metadata via `system.*` tables; native TCP protocol (port 9000) for low overhead. Understands ClickHouse-specific types (`Nullable(...)`, `Array(...)`) and engine-based table types.
 - 🐘 **PostgreSQL 9.6+** — metadata via `information_schema` + `pg_catalog`; correct schema/database distinction; array-typed index columns parsed.
-- 🐝 **Apache Impala 3.x/4.x** — metadata via `SHOW`/`DESCRIBE` (no INFORMATION_SCHEMA); HiveServer2 protocol. Understands Impala has no traditional indexes (PARTITIONED/SORTED BY instead).
+- 🐝 **Apache Impala 3.x/4.x** — metadata via `SHOW`/`DESCRIBE` (no INFORMATION_SCHEMA); HiveServer2 protocol. Understands Impala has no traditional indexes (PARTITIONED/SORTED BY instead). Supports **Kerberos auth** via keytab — pure Go (exchanges a TGT from the keytab in-process, no system `kinit` required).
 - 🟦 **SQL Server 2017+** — metadata via `sys.*` catalog views; OFFSET/FETCH paging; no ODBC driver needed (pure-Go go-mssqldb).
+- 📞 **Stored procedures** — `dbm-cli call` invokes Oracle PL/SQL procedures, reclaiming OUT scalar params (`number`/`string`) and REF CURSOR result sets, and captures `DBMS_OUTPUT.PUT_LINE` print output (Oracle 11g / 18c verified).
 - 🧩 **Extensible** — `Driver` + `MetadataProvider` + a registry. Adding a database means one new package and one `import _` line; core stays untouched (Open–Closed Principle).
 - 🔒 **Controlled writes** — every datasource has an `allow_write` switch (read-only by default). Destructive statements (`DROP` / `TRUNCATE` / `DELETE`/`UPDATE` without `WHERE`) require an interactive confirmation.
 - 🤖 **AI-friendly** — `dbm-cli manifest` outputs a JSON contract describing all commands, flags, drivers and examples, so an agent learns how to call the tool from a single read.
@@ -120,6 +121,22 @@ datasources:
     allow_write: false
     # tls: skip-verify        # optional: enable TLS
 
+  # Apache Impala with Kerberos (keytab auth, pure Go — no system kinit)
+  impala-kerb:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # HiveServer2 port of the kerberized Impala
+    database: default
+    allow_write: false
+    timeout: 20s              # the Kerberos handshake is slower than no-auth
+    kerberos:                 # optional — omit to use username/password or no-auth
+      realm: EXAMPLE.COM             # KDC realm
+      service: impala                # service principal's first segment (default: impala)
+      krb_host: impalad-node1        # hostname in the service principal (impala/krb_host@REALM)
+      keytab: /etc/security/keytabs/cdp.keytab
+      principal: cdptest@EXAMPLE.COM # client principal (include realm)
+      krb5_conf: /etc/krb5.conf      # krb5.conf (contains the KDC address)
+
   # Writable datasource (any type)
   dev-rw:
     type: mysql
@@ -152,6 +169,7 @@ dbm-cli indexes   -d prod-ro --table EMPLOYEES
 dbm-cli views     -d prod-ro --schema HR
 dbm-cli table     -d prod-ro --name EMPLOYEES --schema HR --limit 20 -o json
 dbm-cli query     -d prod-ro "SELECT * FROM HR.EMPLOYEES WHERE ROWNUM<=10"
+dbm-cli call      -d prod-ro add_numbers --in 3 --in 5 --out sum:number   # Oracle stored procedure
 dbm-cli manifest                                        # self-describing JSON for AI agents
 ```
 
@@ -183,6 +201,26 @@ dbm-cli query -d prod-ro -f big-report.sql --limit 500
 
 Flags: `--file/-f`, `--param` (repeatable, positional binding), `--limit` (default 1000), `--yes` (skip destructive confirmation).
 
+#### Stored procedures (`call`) — Oracle
+
+`call` invokes an Oracle PL/SQL procedure and reclaims its outputs. It supports three kinds of OUT result:
+
+- **Scalar OUT params** — declared via `--out name:type`, where `type` ∈ `number` / `string`; printed to stdout as `name = value`.
+- **REF CURSOR** — declared via `--out name:cursor`; the returned result set is printed using the global `-o` format (`table`/`json`/...).
+- **`DBMS_OUTPUT` print** — `DBMS_OUTPUT.PUT_LINE` text is captured (session-pinned connection) and printed to **stderr** by default; `--no-print` disables capture.
+
+Parameters bind in order: **all `--in` first** (placeholders `:1..:N`), **then all `--out`** (`:N+1..`) — matching the procedure's signature.
+
+```bash
+dbm-cli call add_numbers --in 3 --in 5 --out sum:number
+dbm-cli call get_users   --in 2 --out users:cursor
+dbm-cli call get_user_info --in 42 --out status:string --out count:number --out rows:cursor
+```
+
+Flags: `--in` (repeatable, positional), `--out name:type` (repeatable), `--no-print`.
+
+> Only the Oracle driver implements stored-procedure calls. The capability is exposed through an optional `driver.StoredProcCaller` interface, so other drivers are unaffected (the `call` command reports "not supported" for them rather than failing the build).
+
 #### Output formats
 
 | Format | Description | Best for |
@@ -213,7 +251,7 @@ All errors go to stderr as `[dbm-cli] error: <message>`, often followed by a `[d
 
 `dbm-cli mcp` runs the tool as a **Model Context Protocol** server over stdio. AI clients (Claude Desktop, Cursor, etc.) can connect to it and call the database directly — no need to shell out to CLI commands.
 
-It exposes **11 tools**, mirroring the CLI one-to-one:
+It exposes **12 tools**, mirroring the CLI one-to-one:
 
 | MCP tool | Equivalent CLI | Purpose |
 |----------|----------------|---------|
@@ -228,6 +266,7 @@ It exposes **11 tools**, mirroring the CLI one-to-one:
 | `sample_table` | `table` | paginated table data |
 | `query` | `query` (read) | read-only SQL with `?` placeholders |
 | `execute` | `query` (write) | write SQL, gated by `allow_write` |
+| `call` | `call` | Oracle stored procedure — reclaims OUT scalars / REF CURSOR and captures `DBMS_OUTPUT` (Oracle only) |
 
 **Safety is inherited, not re-implemented**: every connection goes through the same `allow_write` guard as the CLI, so a read-only datasource rejects writes identically. Since MCP has no interactive terminal, the `execute` tool is *stricter* than the CLI — destructive statements (`DROP` / `TRUNCATE` / `DELETE`/`UPDATE` without `WHERE`) require an explicit `confirm_destructive: true` argument.
 
@@ -293,10 +332,12 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **ClickHouse driver** (22.x+, verified end-to-end against 25.8)
 - [x] **PostgreSQL driver** (9.6+, verified end-to-end against 12 / 17)
 - [x] **Apache Impala driver** (3.x/4.x, verified end-to-end against 4.5.0)
+- [x] **Impala Kerberos auth** (keytab, pure Go, verified against TESTBOE.COM realm)
 - [x] **SQL Server driver** (2017+, verified end-to-end against 2017 / 2022)
+- [x] **Oracle stored-procedure calls** (`call`, verified against 11g / 18c)
 - [ ] M7 Polish: unit tests, cross-platform release
 
-> All four drivers (Oracle, MySQL, ClickHouse, PostgreSQL) are complete, pass `go vet` + `go build`, and have been verified end-to-end against live instances: Oracle 11g/18c XE, MySQL 5.7/8.0.12/8.0.37, ClickHouse 25.8, PostgreSQL 12/17, Apache Impala 4.5.0, SQL Server 2017/2022.
+> All drivers (Oracle, MySQL, ClickHouse, PostgreSQL, Apache Impala, SQL Server) are complete, pass `go vet` + `go build`, and have been verified end-to-end against live instances: Oracle 11g/18c XE, MySQL 5.7/8.0.12/8.0.37, ClickHouse 25.8, PostgreSQL 12/17, Apache Impala 4.5.0 (incl. Kerberos), SQL Server 2017/2022. Oracle stored-procedure calls (`call`) are verified against 11g / 18c.
 
 ## 🤝 Contributing
 
