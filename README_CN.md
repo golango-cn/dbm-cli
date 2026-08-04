@@ -24,7 +24,7 @@
 - 🐬 **MySQL 5.7 / 8.0.x 与 MariaDB** —— 元数据走 `information_schema`（跨版本一致）；原生支持 `caching_sha2_password`（8.0 默认认证）。MariaDB 协议兼容，通过 `mariadb` 类型别名即可使用。可选 TLS（`skip-verify`）适配自签证书。
 - ⚡ **ClickHouse 22.x+** —— 元数据走 `system.*` 表；原生 TCP 协议（9000 端口）低开销。理解 ClickHouse 专有类型（`Nullable(...)`、`Array(...)`）与基于引擎的表类型。
 - 🐘 **PostgreSQL 9.6+** —— 元数据走 `information_schema` + `pg_catalog`；正确区分 schema/database；解析数组类型的索引列。
-- 🐝 **Apache Impala 3.x/4.x** —— 元数据走 `SHOW`/`DESCRIBE`（Impala 无 INFORMATION_SCHEMA）；HiveServer2 协议。理解 Impala 无传统索引（用 PARTITIONED/SORTED BY 替代）。
+- 🐝 **Apache Impala 3.x/4.x** —— 元数据走 `SHOW`/`DESCRIBE`（Impala 无 INFORMATION_SCHEMA）；HiveServer2 协议。理解 Impala 无传统索引（用 PARTITIONED/SORTED BY 替代）。**支持 Kerberos 认证**（纯 Go，用 keytab 换取票据，无需系统 kinit）。
 - 🟦 **SQL Server 2017+** —— 元数据走 `sys.*` 目录视图；OFFSET/FETCH 分页；纯 Go 无需 ODBC 驱动（go-mssqldb）。
 - 🧩 **可扩展** —— `Driver` + `MetadataProvider` + 注册表设计。新增数据库只需新建一个包并 `import _`，核心代码无需改动（开闭原则）。
 - 🔒 **读写受控** —— 每个数据源 `allow_write` 开关（默认只读）。危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）需交互式确认。
@@ -129,7 +129,41 @@ datasources:
     user: dev
     password: ${DB_PWD_DEV}
     allow_write: true
+
+  # Apache Impala —— 无认证（不配 user/password）
+  impala-prod:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # HiveServer2 端口
+    database: default
+    allow_write: false
+
+  # Apache Impala —— Kerberos 认证（keytab 方式，纯 Go，无需系统 kinit）
+  impala-kerb:
+    type: impala
+    host: 10.0.0.9
+    port: 21050
+    database: default
+    allow_write: false
+    kerberos:                 # 配了此段即启用 Kerberos
+      realm: EXAMPLE.COM
+      service: impala         # 服务主体名，默认 impala
+      krb_host: impalad-node1  # principal 里的 hostname（impala/krb_host@REALM）
+      keytab: /etc/security/keytabs/cdp.keytab
+      principal: cdptest@EXAMPLE.COM
+      krb5_conf: /etc/krb5.conf
 ```
+
+### 🔐 Impala Kerberos 认证
+
+Kerberized Impala 集群在上述配置基础上加 `kerberos` 段即可，**无需安装系统 Kerberos 客户端**（dbm-cli 用纯 Go 的 gokrb5 从 keytab 换取票据）。
+
+- **`keytab`** + **`principal`**：客户端身份（程序用 keytab 向 KDC 换取 TGT）。
+- **`krb5_conf`**：指向含 KDC 地址的 krb5.conf（与系统 `kinit` 用的是同一格式）。
+- **`service`** + **`krb_host`**：Impala 服务主体 `impala/krb_host@REALM` 的两段（第一段默认 `impala`）。
+- 凭据换取在每次连接建立时进行，连接关闭时自动清理临时票据缓存文件。
+
+> 注：Impala 的 INSERT/UPDATE 受影响行数服务端常返回 0（非 dbm-cli 问题，官方 impala-shell 的 "Modified N rows" 来自查询进度回调，非 RPC 返回值）；数据已正确写入，用 `SELECT COUNT(*)` 验证。
 
 > **MySQL 说明**：`database` 为必填项（MySQL 的 schema 即 database）。8.0 默认认证插件 `caching_sha2_password` 无需额外配置即可连接。
 
@@ -156,6 +190,31 @@ dbm-cli manifest                                        # 面向 AI 的自描述
 ```
 
 全局 flag：`-c/--config`、`-d/--datasource`、`-o/--output {table|json|csv|yaml|vertical}`、`--no-header`
+
+#### 存储过程调用（`call`，仅 Oracle）
+
+`call` 调用 Oracle 存储过程，自动回收 **OUT 标量参数**与 **REF CURSOR 结果集**，并捕获过程内 `DBMS_OUTPUT.PUT_LINE` 的打印输出（默认输出到 stderr，类似 sqlplus 的 `SET SERVEROUTPUT ON`）。
+
+语法：`--in` 传 IN 参数（按顺序），`--out name:type` 声明 OUT 参数，`type` ∈ `number`（数值）/ `string`（字符串）/ `cursor`（结果集）。
+
+```bash
+# IN + OUT 标量：add_numbers(a,b IN NUMBER, sum OUT NUMBER)，过程内有 PUT_LINE
+dbm-cli call -d ora add_numbers --in 3 --in 5 --out sum:number
+# stderr:  计算完成: 3 + 5 = 8
+# stdout:  sum = 8
+
+# REF CURSOR：get_users(min_id IN NUMBER, p_cursor OUT SYS_REFCURSOR)
+dbm-cli call -d ora get_users --in 2 --out users:cursor
+# stderr 打印 + stdout 是结果集表格（支持 -o json/csv/...）
+
+# 综合：多 OUT 标量 + REF CURSOR
+dbm-cli call -d ora get_user_info --in 42 --out status:string --out count:number --out rows:cursor
+```
+
+- **绑定顺序**：先所有 `--in`（占位符 `:1..:N`），再所有 `--out`（占位符 `:N+1..`），与过程签名顺序一致。
+- **DBMS_OUTPUT**：默认捕获并打印到 stderr（与 stdout 结果集分离，便于管道处理）；`--no-print` 关闭。
+- **OUT 字符串缓冲**：默认 4000 字符，可在 `--out name:string` 时由驱动按需扩展。
+- 仅 Oracle 驱动实现（`driver.StoredProcCaller` 可选接口）；其它驱动调用会提示不支持。
 
 #### 自定义 SQL（`query`）
 

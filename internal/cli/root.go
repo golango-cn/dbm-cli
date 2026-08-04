@@ -77,6 +77,7 @@ func New() *cobra.Command {
 		newTableCmd(),
 		newQueryCmd(),
 		newMcpCmd(),
+		newCallCmd(),
 	)
 
 	// 把 cobra 自动生成的 completion 命令描述改为中文。

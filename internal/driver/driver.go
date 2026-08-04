@@ -172,3 +172,53 @@ type ExecResult struct {
 	RowsAffected int64
 	LastInsertID int64 // 部分数据库支持
 }
+
+// ParamDirection 描述存储过程参数的方向。
+type ParamDirection int
+
+const (
+	ParamIn    ParamDirection = iota // 输入参数
+	ParamOut                         // 输出参数
+	ParamInOut                       // 输入输出参数
+)
+
+// ProcParam 描述一个存储过程参数（IN / OUT / INOUT）。
+//
+// 对 IN 参数：Value 即为传入值。
+// 对 OUT/INOUT 参数：OutType 指示回收值的类型，取值：
+//   - "number"  → 数值（float64 回收）
+//   - "string"  → 字符串（需 OutSize 给缓冲长度，默认 4000）
+//   - "cursor"  → REF CURSOR（结果集，填入 ProcResult.ResultSet）
+// INOUT 参数同时使用 Value（输入）与 OutType（输出）。
+type ProcParam struct {
+	Name      string         // 参数名（仅用于 OUT 值回显的 key，可选）
+	Value     any            // IN / INOUT 的输入值
+	Direction ParamDirection // 方向
+	OutType   string         // OUT 目标类型：number|string|cursor
+	OutSize   int            // OUT 字符串/集合的缓冲大小（默认 4000）
+}
+
+// ProcResult 是存储过程调用的返回。
+type ProcResult struct {
+	OutParams map[string]any // OUT 标量参数名→值（数值/字符串等；不含 cursor）
+	ResultSet *Result        // REF CURSOR 的结果集（若有 cursor 类型的 OUT 参数）
+	Output    string         // DBMS_OUTPUT（PL/SQL 里 PUT_LINE 的打印文本），驱动不支持则为空
+}
+
+// StoredProcCaller 是一个「可选」能力接口：调用存储过程并捕获 DBMS_OUTPUT。
+//
+// 之所以单独成接口而非塞进 Conn，是因为：
+//  1. 并非所有数据库都有"存储过程 + 服务端 print"的等价物（如 SQLite/MySQL 模型不同）；
+//  2. REF CURSOR / DBMS_OUTPUT 的处理高度数据库特定，不应强制每个驱动实现。
+//
+// CLI 层通过类型断言检测该能力（类似 PagedDataProvider）：
+//
+//	if sp, ok := conn.(driver.StoredProcCaller); ok { ... }
+//
+// 未实现时，`call` 命令给出清晰的"该驱动不支持存储过程"提示。
+// 注意：经 WriteGuard 包裹的连接，需先 Unwrap 拿到底层 conn 再做断言。
+type StoredProcCaller interface {
+	// CallProc 调用存储过程 proc，按 params 顺序绑定参数（先 IN 后 OUT）。
+	// 返回 OUT 标量值、REF CURSOR 结果集、DBMS_OUTPUT 文本。
+	CallProc(ctx context.Context, proc string, params []ProcParam) (*ProcResult, error)
+}
