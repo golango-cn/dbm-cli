@@ -26,6 +26,7 @@
 - 🐘 **PostgreSQL 9.6+** —— 元数据走 `information_schema` + `pg_catalog`；正确区分 schema/database；解析数组类型的索引列。
 - 🐝 **Apache Impala 3.x/4.x** —— 元数据走 `SHOW`/`DESCRIBE`（Impala 无 INFORMATION_SCHEMA）；HiveServer2 协议。理解 Impala 无传统索引（用 PARTITIONED/SORTED BY 替代）。**支持 Kerberos 认证**（纯 Go，用 keytab 换取票据，无需系统 kinit）。
 - 🟦 **SQL Server 2017+** —— 元数据走 `sys.*` 目录视图；OFFSET/FETCH 分页；纯 Go 无需 ODBC 驱动（go-mssqldb）。
+- 📞 **存储过程** —— `dbm-cli call` 调用 Oracle PL/SQL 过程，回收 OUT 标量参数（`number`/`string`）与 REF CURSOR 结果集，并捕获 `DBMS_OUTPUT.PUT_LINE` 打印输出（已对 Oracle 11g / 18c 验证）。
 - 🧩 **可扩展** —— `Driver` + `MetadataProvider` + 注册表设计。新增数据库只需新建一个包并 `import _`，核心代码无需改动（开闭原则）。
 - 🔒 **读写受控** —— 每个数据源 `allow_write` 开关（默认只读）。危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）需交互式确认。
 - 🤖 **AI 友好** —— `dbm-cli manifest` 输出 JSON 契约，描述全部命令、参数、驱动与示例，AI 读取一次即学会如何调用。
@@ -186,6 +187,7 @@ dbm-cli indexes   -d prod-ro --table EMPLOYEES
 dbm-cli views     -d prod-ro --schema HR
 dbm-cli table     -d prod-ro --name EMPLOYEES --schema HR --limit 20 -o json
 dbm-cli query     -d prod-ro "SELECT * FROM HR.EMPLOYEES WHERE ROWNUM<=10"
+dbm-cli call      -d prod-ro add_numbers --in 3 --in 5 --out sum:number   # Oracle 存储过程
 dbm-cli manifest                                        # 面向 AI 的自描述 JSON
 ```
 
@@ -272,7 +274,7 @@ dbm-cli table  -d prod-ro --name EMP --limit 5 -o csv      # CSV
 
 `dbm-cli mcp` 把工具作为 **Model Context Protocol** server（stdio 传输）运行。AI 客户端（Claude Desktop、Cursor 等）可直接接入并调用数据库，无需手动拼接 CLI 命令。
 
-它暴露 **11 个 tool**，与 CLI 一一对应：
+它暴露 **12 个 tool**，与 CLI 一一对应：
 
 | MCP tool | 对应 CLI | 用途 |
 |----------|----------|------|
@@ -287,6 +289,7 @@ dbm-cli table  -d prod-ro --name EMP --limit 5 -o csv      # CSV
 | `sample_table` | `table` | 分页采样表数据 |
 | `query` | `query`（只读） | 只读 SQL，`?` 占位符 |
 | `execute` | `query`（写） | 写 SQL，受 `allow_write` 守卫 |
+| `call` | `call` | Oracle 存储过程——回收 OUT 标量 / REF CURSOR，捕获 `DBMS_OUTPUT`（仅 Oracle） |
 
 **安全模型是继承的，不是重做的**：每个连接都走和 CLI 相同的 `allow_write` 守卫，只读数据源在 MCP 层同样拒绝写操作。由于 MCP 没有交互终端，`execute` tool 比 CLI **更严格**——危险语句（`DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`/`UPDATE`）必须显式传 `confirm_destructive: true` 参数才会执行。
 
@@ -352,10 +355,12 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **ClickHouse 驱动**（22.x+，已对 25.8 端到端验证）
 - [x] **PostgreSQL 驱动**（9.6+，已对 12 / 17 端到端验证）
 - [x] **Apache Impala 驱动**（3.x/4.x，已对 4.5.0 端到端验证）
+- [x] **Impala Kerberos 认证**（keytab，纯 Go，已对 TESTBOE.COM realm 验证）
 - [x] **SQL Server 驱动**（2017+，已对 2017 / 2022 端到端验证）
+- [x] **Oracle 存储过程调用**（`call`，已对 11g / 18c 验证）
 - [ ] M7 打磨：单元测试、跨平台发布
 
-> 四个驱动（Oracle / MySQL / ClickHouse / PostgreSQL）全部完成，通过 `go vet` + `go build`，并已对真实实例端到端验证：Oracle 11g/18c XE、MySQL 5.7/8.0.12/8.0.37、ClickHouse 25.8、PostgreSQL 12/17、Apache Impala 4.5.0、SQL Server 2017/2022。
+> 全部驱动（Oracle / MySQL / ClickHouse / PostgreSQL / Apache Impala / SQL Server）均已完成，通过 `go vet` + `go build`，并已对真实实例端到端验证：Oracle 11g/18c XE、MySQL 5.7/8.0.12/8.0.37、ClickHouse 25.8、PostgreSQL 12/17、Apache Impala 4.5.0（含 Kerberos）、SQL Server 2017/2022。Oracle 存储过程调用（`call`）已对 11g / 18c 验证。
 
 ## 🤝 贡献
 
