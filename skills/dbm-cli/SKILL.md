@@ -119,7 +119,7 @@ That example contains **one block per engine**, all following the naming convent
 | `oracle` | `service_name` **or** `sid` (one required) | Version auto-detected 10g–21c; restricted accounts use `force_version: "11g"`. |
 | `sqlserver` | `database` (required) | Default schema is `dbo`; pure-Go driver, no ODBC. |
 | `clickhouse` | `database` (required; == schema) | **Port 9000** (native TCP), **not** 8123 (HTTP). |
-| `impala` | `database` (required; == schema) | **Port 21050** (HiveServer2), **not** 21000. user/password optional on no-auth clusters. Kerberos auth via keytab — pure Go, no system `kinit` (see [Impala Kerberos](#impala-kerberos-auth-keytab)). |
+| `impala` | `database` (required; == schema) | **Port 21050** (HiveServer2), **not** 21000. Three auth modes: no-auth (default — no user/password), LDAP (`auth_mech: LDAP` + user/password, i.e. Cloudera AuthMech=3), Kerberos via keytab — pure Go, no system `kinit` (see [Impala Kerberos](#impala-kerberos-auth-keytab)). |
 
 **Common fields for all types**: `description` (helps AI distinguish same-type sources), `allow_write` (default **false** = read-only, writes blocked by a guard), `timeout` (default 30s), `password` (supports `${ENV_VAR}` expansion — prefer this over inline plaintext).
 
@@ -138,6 +138,25 @@ datasources:
     password: ${DB_PWD_152_MYSQL_BDMP}   # env var; or inline for local-only
     allow_write: false
 ```
+
+### Impala LDAP auth (AuthMech=3)
+
+For an Impala cluster that requires username/password auth (Cloudera JDBC `AuthMech=3`), set `auth_mech: LDAP` plus credentials. dbm-cli performs the SASL PLAIN handshake:
+
+```yaml
+  10.0.0.9_impala_ods_prod:
+    type: impala
+    host: 10.0.0.9
+    port: 21050
+    database: ods
+    auth_mech: LDAP            # case-insensitive; enables SASL PLAIN auth
+    user: bdp_admin
+    password: ${DB_PWD_IMPALA_LDAP}
+    allow_write: false
+    timeout: 15s
+```
+
+`auth_mech: LDAP` requires **both** `user` and `password` — a missing one fails fast with a clear error instead of a vague `bad connection`. Setting user/password **without** `auth_mech` does NOT enable auth (backwards compatible with no-auth clusters).
 
 ### Impala Kerberos auth (keytab)
 

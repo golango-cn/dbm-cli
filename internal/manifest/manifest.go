@@ -142,6 +142,15 @@ func defaultConfigSchema() map[string]string {
 		"datasources.<name>.fetch_size":    "行预取大小",
 		"datasources.<name>.max_open_conns": "连接池最大打开连接数",
 		"datasources.<name>.timeout":       "连接超时（如 10s）；超时报错并提示排查，默认 30s",
+		// Impala 认证（可选）：不配即无认证(NOSASL)；LDAP 需配 user/password；Kerberos 用 kerberos 段
+		"datasources.<name>.auth_mech":       "Impala 认证方式：NOSASL（默认，不配）/ LDAP（AuthMech=3，需 user/password）/ KERBEROS（改用 kerberos 段）",
+		"datasources.<name>.database":        "数据库名（MySQL/Impala/PostgreSQL 等；Oracle 用 service_name/sid）",
+		"datasources.<name>.kerberos.realm":     "Impala Kerberos：KDC realm，如 EXAMPLE.COM",
+		"datasources.<name>.kerberos.service":   "Impala Kerberos：服务主体名（principal 第一段），默认 impala",
+		"datasources.<name>.kerberos.krb_host":  "Impala Kerberos：principal 里的 hostname（impala/krb_host@REALM）",
+		"datasources.<name>.kerberos.keytab":    "Impala Kerberos：keytab 文件路径",
+		"datasources.<name>.kerberos.principal": "Impala Kerberos：客户端主体（含 realm，如 cdptest@EXAMPLE.COM）",
+		"datasources.<name>.kerberos.krb5_conf": "Impala Kerberos：krb5.conf 路径（含 KDC 地址）",
 	}
 }
 

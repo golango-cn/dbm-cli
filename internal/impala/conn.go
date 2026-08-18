@@ -18,6 +18,8 @@ type conn struct {
 }
 
 // buildDSN 构造 impala-go 的 DSN。
+// auth_mech=LDAP 时追加 auth=ldap，驱动 connect() 走 SASL PLAIN 握手
+// （对应 Cloudera JDBC 的 AuthMech=3）；其余情况保持无认证（NOSASL）行为。
 func buildDSN(cfg *driver.DatasourceConfig) string {
 	u := url.URL{Scheme: "impala", Host: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)}
 	if cfg.User != "" {
@@ -28,6 +30,9 @@ func buildDSN(cfg *driver.DatasourceConfig) string {
 		}
 	}
 	q := u.Query()
+	if mech := parseAuthMech(cfg); mech != "" {
+		q.Set("auth", mech)
+	}
 	if normalizeTLS(cfg.TLS) {
 		q.Set("tls", "true")
 	}

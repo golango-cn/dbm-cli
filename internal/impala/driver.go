@@ -32,6 +32,13 @@ func (d *Driver) Open(cfg *driver.DatasourceConfig) (driver.Conn, error) {
 	// 若配置了 keytab，先换取 ticket 写入临时 ccache 并设置 KRB5CCNAME，
 	// 驱动（go-gssapi krb5 backend）会读取该票据完成 GSSAPI 握手。
 	krb := parseKerberosCfg(cfg)
+	if krb == nil {
+		// 非 Kerberos 路径下校验 auth_mech（LDAP 需 user/password 齐全，
+		// 缺失时在此报错，避免拖到连接池首次取连接时才报 bad connection）。
+		if err := validateAuthMech(cfg); err != nil {
+			return nil, err
+		}
+	}
 	var cleanup func() = nil
 	if krb != nil {
 		c, err := setupKerberos(krb)

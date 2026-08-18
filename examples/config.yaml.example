@@ -100,13 +100,26 @@ datasources:
     allow_write: false
     # tls: skip-verify        # 可选：启用 TLS（sslmode=require）
 
-  # Apache Impala 数据源示例（3.x / 4.x）
+  # Apache Impala 数据源示例（3.x / 4.x）—— 无认证（NOSASL）
   impala-prod:
     type: impala
     host: 10.0.0.9
     port: 21050               # HiveServer2 端口（不是 impala-shell 的 21000）
     database: default          # 库名（Impala 中 database == schema）
-    # 无认证集群可不配 user/password；LDAP/Kerberos 集群则需配置
+    # 无认证集群不配 user/password、不配 auth_mech
+    allow_write: false
+    timeout: 15s
+
+  # Apache Impala 数据源示例 —— LDAP 认证（Cloudera AuthMech=3）
+  # 集群要求用户名/密码认证时配置；对应 JDBC URL 的 ;AuthMech=3
+  impala-ldap:
+    type: impala
+    host: 10.0.0.9
+    port: 21050
+    database: default
+    auth_mech: LDAP            # 认证方式：LDAP（大小写不敏感）
+    user: bdp_admin            # LDAP 用户名
+    password: ${DB_PWD_IMPALA_LDAP}
     allow_write: false
     timeout: 15s
 

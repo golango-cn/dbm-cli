@@ -121,6 +121,26 @@ datasources:
     allow_write: false
     # tls: skip-verify        # optional: enable TLS
 
+  # Apache Impala — no auth (NOSASL): no user/password, no auth_mech
+  impala-prod:
+    type: impala
+    host: 10.0.0.9
+    port: 21050               # HiveServer2 port (NOT 21000, which is impala-shell's)
+    database: default
+    allow_write: false
+
+  # Apache Impala — LDAP auth (Cloudera AuthMech=3)
+  impala-ldap:
+    type: impala
+    host: 10.0.0.9
+    port: 21050
+    database: default
+    auth_mech: LDAP            # auth mechanism: LDAP (case-insensitive)
+    user: bdp_admin
+    password: ${DB_PWD_IMPALA_LDAP}
+    allow_write: false
+    timeout: 15s
+
   # Apache Impala with Kerberos (keytab auth, pure Go — no system kinit)
   impala-kerb:
     type: impala
@@ -333,6 +353,7 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **PostgreSQL driver** (9.6+, verified end-to-end against 12 / 17)
 - [x] **Apache Impala driver** (3.x/4.x, verified end-to-end against 4.5.0)
 - [x] **Impala Kerberos auth** (keytab, pure Go, verified against TESTBOE.COM realm)
+- [x] **Impala LDAP auth** (`auth_mech: LDAP`, Cloudera AuthMech=3, verified against 4.5.0 with LDAP+SASL)
 - [x] **SQL Server driver** (2017+, verified end-to-end against 2017 / 2022)
 - [x] **Oracle stored-procedure calls** (`call`, verified against 11g / 18c)
 - [ ] M7 Polish: unit tests, cross-platform release

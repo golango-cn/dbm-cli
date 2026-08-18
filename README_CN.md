@@ -131,13 +131,25 @@ datasources:
     password: ${DB_PWD_DEV}
     allow_write: true
 
-  # Apache Impala —— 无认证（不配 user/password）
+  # Apache Impala —— 无认证（不配 user/password、不配 auth_mech）
   impala-prod:
     type: impala
     host: 10.0.0.9
     port: 21050               # HiveServer2 端口
     database: default
     allow_write: false
+
+  # Apache Impala —— LDAP 认证（Cloudera AuthMech=3）
+  impala-ldap:
+    type: impala
+    host: 10.0.0.9
+    port: 21050
+    database: default
+    auth_mech: LDAP            # 认证方式：LDAP（大小写不敏感）
+    user: bdp_admin            # LDAP 用户名
+    password: ${DB_PWD_IMPALA_LDAP}
+    allow_write: false
+    timeout: 15s
 
   # Apache Impala —— Kerberos 认证（keytab 方式，纯 Go，无需系统 kinit）
   impala-kerb:
@@ -154,6 +166,21 @@ datasources:
       principal: cdptest@EXAMPLE.COM
       krb5_conf: /etc/krb5.conf
 ```
+
+### 🔐 Impala 认证方式
+
+Impala 集群有三种常见认证形态，dbm-cli 全部支持：
+
+| 认证方式 | 配置 | 说明 |
+|---|---|---|
+| **无认证 (NOSASL)** | 不配 `auth_mech`、不配 `user/password` | 默认。集群未启用认证时使用 |
+| **LDAP** (AuthMech=3) | `auth_mech: LDAP` + `user`/`password` | 集群要求用户名/密码认证（Cloudera JDBC `AuthMech=3`）时使用，走 SASL PLAIN 握手 |
+| **Kerberos** | 配 `kerberos:` 段 | 见下节，keytab 换票 + GSSAPI |
+
+注意：
+
+- `auth_mech: LDAP` 要求 `user` 与 `password` 同时配置，缺失会在连接时直接报清晰错误（而不是模糊的 `bad connection`）。
+- 仅配了 `user/password` 但没配 `auth_mech` 时不会启用任何认证（保持旧行为，兼容既有无认证集群配置）。
 
 ### 🔐 Impala Kerberos 认证
 
@@ -356,6 +383,7 @@ tables, _ := conn.Metadata().Tables(ctx, "HR")
 - [x] **PostgreSQL 驱动**（9.6+，已对 12 / 17 端到端验证）
 - [x] **Apache Impala 驱动**（3.x/4.x，已对 4.5.0 端到端验证）
 - [x] **Impala Kerberos 认证**（keytab，纯 Go，已对 TESTBOE.COM realm 验证）
+- [x] **Impala LDAP 认证**（`auth_mech: LDAP`，即 Cloudera AuthMech=3，已对 4.5.0 + LDAP 端到端验证）
 - [x] **SQL Server 驱动**（2017+，已对 2017 / 2022 端到端验证）
 - [x] **Oracle 存储过程调用**（`call`，已对 11g / 18c 验证）
 - [ ] M7 打磨：单元测试、跨平台发布
