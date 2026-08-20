@@ -3,8 +3,8 @@
 // 缺省值用于 `go run` / 直接 `go build` 的开发场景。
 package buildinfo
 
-// Version 工具版本号。默认 dev，正式构建由 Makefile 注入 git tag。
-var Version = "dev"
+// Version 工具版本号。默认 v1.0.1，正式构建由 Makefile 注入 git tag。
+var Version = "v1.0.1"
 
 // Commit 枥简哈希。默认 unknown，正式构建由 Makefile 注入。
 var Commit = "unknown"

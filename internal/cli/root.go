@@ -40,8 +40,9 @@ var loadedConfig *config.File
 // import 的副作用（driver 自注册）在 main 里通过空导入触发。
 func New() *cobra.Command {
 	root := &cobra.Command{
-		Use:   buildinfo.AppName,
-		Short: "dbm-cli — zero-dependency database CLI (Oracle first, extensible)",
+		Use:     buildinfo.AppName,
+		Short:   "dbm-cli — zero-dependency database CLI (Oracle first, extensible)",
+		Version: buildinfo.Version,
 		Long: `dbm-cli 是一个零外部依赖的数据库命令行工具：单个静态二进制即可查询数据库元数据与数据。
 
 先支持 Oracle（纯 Go 驱动 go-ora，无需 Instant Client / 无需 CGO），
