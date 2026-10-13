@@ -12,6 +12,9 @@ config.yaml
 config.yml
 !examples/config.yaml.example
 
+# Local issue notes (not for tracking)
+/issue/
+
 # demo/ 已合并到 examples/（见 refactor commit）；本地 demo/ 是工作区残留
 # （二进制 + 本地配置），整目录忽略。
 /demo/
